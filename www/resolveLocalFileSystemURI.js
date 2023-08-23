@@ -21,7 +21,7 @@
 (function () {
     // For browser platform: not all browsers use overrided `resolveLocalFileSystemURL`.
     function checkBrowser () {
-        if (cordova.platformId === 'browser' && require('./isChrome')()) {
+        if ((cordova.platformId === 'browser' || cordova.platformId === 'electron') && require('./isChrome')()) {
             module.exports.resolveLocalFileSystemURL = window.resolveLocalFileSystemURL || window.webkitResolveLocalFileSystemURL;
             return true;
         }
