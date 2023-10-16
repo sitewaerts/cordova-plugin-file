@@ -1,6 +1,6 @@
 {
   "name": "cordova-plugin-file",
-  "version": "8.0.1-dev",
+  "version": "8.1.0-dev",
   "description": "Cordova File Plugin",
   "types": "./types/index.d.ts",
   "cordova": {
@@ -10,7 +10,8 @@
       "browser",
       "ios",
       "osx",
-      "windows"
+      "windows",
+      "electron"
     ]
   },
   "repository": "github:apache/cordova-plugin-file",
@@ -23,7 +24,8 @@
     "cordova-browser",
     "cordova-ios",
     "cordova-osx",
-    "cordova-windows"
+    "cordova-windows",
+    "cordova-electron"
   ],
   "scripts": {
     "test": "npm run lint",

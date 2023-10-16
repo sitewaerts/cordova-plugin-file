@@ -21,7 +21,7 @@
 <plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
 xmlns:android="http://schemas.android.com/apk/res/android"
            id="cordova-plugin-file"
-      version="8.0.1-dev">
+      version="8.1.0-dev">
     <name>File</name>
     <description>Cordova File Plugin</description>
     <license>Apache 2.0</license>
@@ -256,6 +256,16 @@ to config.xml in order for the application to find previously stored files.
 
         <js-module src="www/browser/FileSystem.js" name="firefoxFileSystem">
             <merges target="window.FileSystem" />
+        </js-module>
+    </platform>
+
+    <!-- electron -->
+    <platform name="electron">
+        <framework src="src/electron" />
+        
+        <js-module src="www/fileSystemPaths.js" name="fileSystemPaths">
+            <merges target="cordova" />
+            <runs />
         </js-module>
     </platform>
 

@@ -20,6 +20,10 @@
 -->
 # Release Notes
 
+### 8.1.0 (Oct 16, 2023)
+
+* [GH-549](https://github.com/apache/cordova-plugin-file/pull/549) feat(electron): add platform support
+
 ### 8.0.0 (Jul 07, 2023)
 
 * [GH-534](https://github.com/apache/cordova-plugin-file/pull/534) fix(android): `FileError` on a content `resolveLocalFileSystemURL`

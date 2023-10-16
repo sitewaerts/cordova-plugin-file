@@ -30,6 +30,7 @@ exports.defineAutoTests = function () {
     const isIndexedDBShim = isBrowser && !isChrome; // Firefox and IE for example
 
     const isWindows = cordova.platformId === 'windows';
+    var isElectron = cordova.platformId === 'electron';
     /* eslint-enable no-undef */
     const MEDIUM_TIMEOUT = 15000;
 
@@ -59,6 +60,9 @@ exports.defineAutoTests = function () {
                     return {
                         compare: function (error, code) {
                             const pass = error.code === code;
+                            if (isElectron && error && error.code && error.code.message) {
+                                pass = error.code.message.indexOf(code) > -1;
+                            }
                             return {
                                 pass,
                                 message: 'Expected FileError with code ' + fileErrorMap[error.code] + ' (' + error.code + ') to be ' + fileErrorMap[code] + '(' + code + ')'
@@ -266,7 +270,7 @@ exports.defineAutoTests = function () {
                 });
 
                 it('file.spec.6 should error if you request a file system that is too large', function (done) {
-                    if (isBrowser) {
+                    if (isBrowser || isElectron) {
                         /* window.requestFileSystem TEMPORARY and PERSISTENT filesystem quota is not limited in Chrome.
                         Firefox filesystem size is not limited but every 50MB request user permission.
                         IE10 allows up to 10mb of combined AppCache and IndexedDB used in implementation
@@ -400,6 +404,9 @@ exports.defineAutoTests = function () {
                 });
 
                 it('file.spec.10 resolve valid file name with parameters', function (done) {
+                    if (isElectron) {
+                        pending('fs does not take parameters in file');
+                    }
                     const fileName = 'resolve.file.uri.params';
                     const win = function (fileEntry) {
                         expect(fileEntry).toBeDefined();
@@ -436,7 +443,9 @@ exports.defineAutoTests = function () {
                     const fail = function (error) {
                         expect(error).toBeDefined();
                         if (isChrome) {
-                        // O.o chrome returns error code 0
+                            // O.o chrome returns error code 0
+                        } else if (isElectron) {
+                            // electron returns a not found error with error code 1
                         } else {
                             expect(error).toBeFileError(FileError.ENCODING_ERR); // eslint-disable-line no-undef
                         }
@@ -636,6 +645,10 @@ exports.defineAutoTests = function () {
                 if (isBrowser) {
                     /* The plugin does not follow to ["8.3 Naming restrictions"]
                     (http://www.w3.org/TR/2011/WD-file-system-api-20110419/#naming-restrictions). */
+                    pending();
+                }
+                if (isElectron) {
+                    /* the fs plugin will consider this a valid fileName and return a NOT FOUND ERROR */
                     pending();
                 }
 
@@ -943,6 +956,10 @@ exports.defineAutoTests = function () {
             });
 
             it('file.spec.36 removeRecursively on root file system', function (done) {
+                if (cordova.platformId === 'electron') {
+                    pending('The "root.removeRecursively" method will not be tested in Electron as it would remove the entire source code and cause further tests to fail.');
+                    return;
+                }
                 const remove = function (error) {
                     expect(error).toBeDefined();
                     if (isChrome) {
@@ -1288,7 +1305,11 @@ exports.defineAutoTests = function () {
                     }, function (entryFile) {
                         const uri = entryFile.toURL();
                         expect(uri).toBeDefined();
-                        expect(uri).toContain('/num%201/num%202/');
+                        if (isElectron) {
+                            expect(uri).toContain('/num 1/num 2/');
+                        } else {
+                            expect(uri).toContain('/num%201/num%202/');
+                        }
                         expect(uri.indexOf(rootPath)).not.toBe(-1);
                         // cleanup
                         deleteEntry(dirName_1, done);
@@ -1393,7 +1414,7 @@ exports.defineAutoTests = function () {
                 // remove entry that doesn't exist
                 root.remove(succeed.bind(null, done, 'entry.remove - Unexpected success callback, it should not remove entry that it does not exists'), function (error) {
                     expect(error).toBeDefined();
-                    if (isChrome) {
+                    if (isChrome || isElectron) {
                         /* INVALID_MODIFICATION_ERR (code: 9) or ??? (code: 13) is thrown instead of
                         NO_MODIFICATION_ALLOWED_ERR(code: 6) on trying to call removeRecursively
                         on the root file system. */
@@ -1447,7 +1468,7 @@ exports.defineAutoTests = function () {
                         if (isChrome) {
                             // chrome returns unknown error with code 13
                         } else {
-                            expect(error).toBeFileError(FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
+                            expect(error).toBeFileError(isElectron ? FileError.ENCODING_ERR : FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
                         }
                         // cleanup
                         deleteEntry(file1, done);
@@ -1618,7 +1639,7 @@ exports.defineAutoTests = function () {
                         if (isChrome) {
                             // chrome returns unknown error with code 13
                         } else {
-                            expect(error).toBeFileError(FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
+                            expect(error).toBeFileError(isElectron ? FileError.ENCODING_ERR : FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
                         }
                         root.getDirectory(srcDir, {
                             create: false
@@ -1634,6 +1655,10 @@ exports.defineAutoTests = function () {
             });
 
             it('file.spec.63 copyTo: directory that does not exist', function (done) {
+                if (isElectron) {
+                    // Electron creates the folder if it doesn't exist
+                    pending();
+                }
                 const file1 = 'entry.copy.dnf.file1';
                 const dirName = 'dir-foo';
                 createFile(file1, function (fileEntry) {
@@ -2015,7 +2040,7 @@ exports.defineAutoTests = function () {
                         if (isChrome) {
                             // chrome returns unknown error with code 13
                         } else {
-                            expect(error).toBeFileError(FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
+                            expect(error).toBeFileError(isElectron ? FileError.ENCODING_ERR : FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
                         }
                         // make sure original directory still exists
                         root.getDirectory(srcDir, {
@@ -2151,7 +2176,7 @@ exports.defineAutoTests = function () {
                             if (isChrome) {
                                 // chrome returns unknown error with code 13
                             } else {
-                                expect(error).toBeFileError(FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
+                                expect(error).toBeFileError(isElectron ? FileError.ENCODING_ERR : FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
                             }
                             // test that original directory exists
                             root.getDirectory(srcDir, {
@@ -2199,7 +2224,7 @@ exports.defineAutoTests = function () {
                             if (isChrome) {
                                 // chrome returns unknown error with code 13
                             } else {
-                                expect(error).toBeFileError(FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
+                                expect(error).toBeFileError(isElectron ? FileError.ENCODING_ERR : FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
                             }
                             // check that original dir still exists
                             root.getDirectory(srcDir, {
@@ -2254,7 +2279,7 @@ exports.defineAutoTests = function () {
                                     if (isChrome) {
                                         // chrome returns unknown error with code 13
                                     } else {
-                                        expect(error).toBeFileError(FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
+                                        expect(error).toBeFileError(isElectron ? FileError.ENCODING_ERR : FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
                                     }
                                     // making sure destination directory still exists
                                     directory.getDirectory(subDir, {
@@ -2283,6 +2308,9 @@ exports.defineAutoTests = function () {
             });
 
             it('file.spec.77 moveTo: file replace existing file', function (done) {
+                if (isElectron) {
+                    pending('Electron throws an error because of file overwrites');
+                }
                 const file1 = 'entry.move.frf.file1';
                 const file2 = 'entry.move.frf.file2';
                 const file2Path = joinURL(root.fullPath, file2);
@@ -2331,7 +2359,9 @@ exports.defineAutoTests = function () {
                     /* `copyTo` and `moveTo` functions do not support directories (Firefox, IE) */
                     pending();
                 }
-
+                if (isElectron) {
+                    pending('Electron throws an error because of overwrites');
+                }
                 const file1 = 'file1';
                 const srcDir = 'entry.move.drd.srcDir';
                 const dstDir = 'entry.move.drd.dstDir';
@@ -2388,6 +2418,9 @@ exports.defineAutoTests = function () {
             it('file.spec.79 moveTo: directory that does not exist', function (done) {
                 if (isChrome) {
                     pending('chrome freak out about non-existend dir not being a DirectoryEntry');
+                }
+                if (isElectron) {
+                    pending('Electron creates the directory if it doesn\'t exist');
                 }
                 const file1 = 'entry.move.dnf.file1';
                 const dstDir = 'entry.move.dnf.dstDir';
@@ -2894,6 +2927,10 @@ exports.defineAutoTests = function () {
             });
 
             it('file.spec.98 should be able to seek to the middle of the file and write more data than file.length', function (done) {
+                if (isElectron) {
+                    pending('Electron implements fs-extra for node. This means writing from a particular seek point doesn\'t remove data from the back');
+                    return;
+                }
                 const fileName = 'writer.seek.write'; // file content
                 const content = 'This is our sentence.'; // for checking file length
                 const exception = 'newer sentence.';
@@ -2938,7 +2975,10 @@ exports.defineAutoTests = function () {
                        i.e. the length is not being changed from content.length and writer length will be equal 21 */
                     pending();
                 }
-
+                if (isElectron) {
+                    pending('Electron implements fs-extra for node. This means writing from a particular seek point doesn\'t remove data from the back');
+                    return;
+                }
                 const fileName = 'writer.seek.write2'; // file content
                 const content = 'This is our sentence.'; // for checking file length
                 const exception = 'new.';
@@ -3444,6 +3484,8 @@ exports.defineAutoTests = function () {
                 pathExpect = 'http://';
             } else if (isChrome) {
                 pathExpect = 'filesystem:http://';
+            } else if (isElectron) {
+                pathExpect = '/native';
             }
 
             it('file.spec.114 fileEntry should have a toNativeURL method', function (done) {
@@ -3581,6 +3623,9 @@ exports.defineAutoTests = function () {
             });
 
             it('file.spec.123 should resolve native URLs returned by API with query string', function (done) {
+                if (isElectron) {
+                    pending('not supported in Electron');
+                }
                 const fileName = 'native.resolve.uri3';
                 // create a new file entry
                 createFile(fileName, function (entry) {
@@ -3595,6 +3640,9 @@ exports.defineAutoTests = function () {
             });
 
             it('file.spec.124 should resolve native URLs returned by API with localhost and query string', function (done) {
+                if (isElectron) {
+                    pending('not supported in Electron');
+                }
                 const fileName = 'native.resolve.uri4';
                 // create a new file entry
                 createFile(fileName, function (entry) {
