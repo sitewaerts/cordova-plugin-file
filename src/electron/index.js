@@ -24,13 +24,123 @@ const path = require('path');
 const fs = require('fs-extra');
 const { app } = require('electron');
 
-const pathsPrefix = {
+const rendererPathSep = '/';
+const cdvPrefix = "cdvfile://localhost/"
+const cdvPathsPrefix = {
+    applicationDirectory: cdvPrefix + "application" + rendererPathSep,
+    dataDirectory: cdvPrefix + "data" + rendererPathSep,
+    cacheDirectory: cdvPrefix + "cache" + rendererPathSep,
+    tempDirectory: cdvPrefix + "temp" + rendererPathSep,
+    documentsDirectory: cdvPrefix + "documents" + rendererPathSep
+};
+
+const nativePathsPrefix = {
     applicationDirectory: path.dirname(app.getAppPath()) + path.sep,
     dataDirectory: app.getPath('userData') + path.sep,
     cacheDirectory: app.getPath('cache') + path.sep,
     tempDirectory: app.getPath('temp') + path.sep,
     documentsDirectory: app.getPath('documents') + path.sep
 };
+
+/**
+ * @param {string} cdvUrl
+ * @returns {string| null}
+ */
+function getCDVPathPrefix(cdvUrl){
+    if(!cdvUrl || cdvUrl.length === 0)
+        return null;
+
+    if(cdvUrl.startsWith(cdvPathsPrefix.applicationDirectory))
+        return cdvPathsPrefix.applicationDirectory
+
+    if(cdvUrl.startsWith(cdvPathsPrefix.dataDirectory))
+        return cdvPathsPrefix.dataDirectory
+
+    if(cdvUrl.startsWith(cdvPathsPrefix.cacheDirectory))
+        return cdvPathsPrefix.cacheDirectory
+
+    if(cdvUrl.startsWith(cdvPathsPrefix.tempDirectory))
+        return cdvPathsPrefix.tempDirectory
+
+    if(cdvUrl.startsWith(cdvPathsPrefix.documentsDirectory))
+        return cdvPathsPrefix.documentsDirectory
+
+    return null;
+}
+
+/**
+ * @param {string} cdvUrl
+ * @returns {string| null}
+ */
+function getNativePathPrefix(cdvUrl){
+    if(!cdvUrl || cdvUrl.length === 0)
+        return null;
+
+    if(cdvUrl.startsWith(cdvPathsPrefix.applicationDirectory))
+        return nativePathsPrefix.applicationDirectory
+
+    if(cdvUrl.startsWith(cdvPathsPrefix.dataDirectory))
+        return nativePathsPrefix.dataDirectory
+
+    if(cdvUrl.startsWith(cdvPathsPrefix.cacheDirectory))
+        return nativePathsPrefix.cacheDirectory
+
+    if(cdvUrl.startsWith(cdvPathsPrefix.tempDirectory))
+        return nativePathsPrefix.tempDirectory
+
+    if(cdvUrl.startsWith(cdvPathsPrefix.documentsDirectory))
+        return nativePathsPrefix.documentsDirectory
+
+    return null;
+}
+
+/**
+ * @param {string} cdvUrl
+ * @returns {string| null}
+ */
+function toNativePath(cdvUrl){
+    if(!cdvUrl || cdvUrl.length === 0)
+        return null;
+
+    if(cdvUrl.indexOf('..')>=0)
+        return null;
+
+    if(cdvUrl.startsWith(cdvPathsPrefix.applicationDirectory))
+        return cdvUrl.replace(cdvPathsPrefix.applicationDirectory, nativePathsPrefix.applicationDirectory )
+
+    if(cdvUrl.startsWith(cdvPathsPrefix.dataDirectory))
+        return cdvUrl.replace(cdvPathsPrefix.dataDirectory, nativePathsPrefix.dataDirectory )
+
+    if(cdvUrl.startsWith(cdvPathsPrefix.cacheDirectory))
+        return cdvUrl.replace(cdvPathsPrefix.cacheDirectory, nativePathsPrefix.cacheDirectory )
+
+    if(cdvUrl.startsWith(cdvPathsPrefix.tempDirectory))
+        return cdvUrl.replace(cdvPathsPrefix.tempDirectory, nativePathsPrefix.tempDirectory)
+
+    if(cdvUrl.startsWith(cdvPathsPrefix.documentsDirectory))
+        return cdvUrl.replace(cdvPathsPrefix.documentsDirectory, nativePathsPrefix.documentsDirectory )
+
+    return null;
+}
+
+/**
+ * @param {string} cdvBaseUrl
+ * @param {string} nativeUrl
+ * @returns {string| null}
+ */
+function toCDVPath(cdvBaseUrl, nativeUrl){
+    if(!cdvBaseUrl || cdvBaseUrl.length === 0)
+        return null;
+
+    if(!nativeUrl || nativeUrl.length === 0)
+        return null;
+
+    const cdvPathPrefix = getCDVPathPrefix(cdvBaseUrl);
+    if(!cdvPathPrefix)
+        return null;
+    const nativePathPrefix = getNativePathPrefix(cdvBaseUrl);
+    return nativeUrl.replace(nativePathPrefix, cdvPathPrefix);
+}
 
 const FileError = {
     // Found in DOMException
@@ -58,7 +168,7 @@ const FileError = {
  * @param {String} fullPath - the full path to the file.
  * @param {String} [filesystem = null] - the filesystem.
  * @param {String} [nativeURL = null] - the native URL of to the file.
- * @returns {Promise<Array>} - An object containing Entry information.
+ * @returns {Object} - An object containing Entry information.
 */
 function returnEntry (isFile, name, fullPath, filesystem = null, nativeURL = null) {
     return {
@@ -75,14 +185,17 @@ module.exports = {
     /**
      * Read the file contents as text
      *
-     * @param {[fullPath: String]} params
+     * @param {[cdvFullPath: String]} params
      *      fullPath - the full path of the directory to read entries from
      * @returns {Promise<Array>} - An array of Entries in that directory
      *
      */
-    readEntries: function ([[fullPath]]) {
+    readEntries: function ([cdvFullPath]) {
+        const nativeFullPath = toNativePath(cdvFullPath);
+        if(!nativeFullPath)
+            return Promise.reject(FileError.NOT_FOUND_ERR)
         return new Promise((resolve, reject) => {
-            fs.readdir(fullPath, { withFileTypes: true }, (err, files) => {
+            fs.readdir(nativeFullPath, { withFileTypes: true }, (err, files) => {
                 if (err) {
                     reject(FileError.NOT_FOUND_ERR);
                     return;
@@ -91,7 +204,7 @@ module.exports = {
                 const result = [];
 
                 files.forEach(d => {
-                    let absolutePath = fullPath + d.name;
+                    let absolutePath = nativeFullPath + d.name;
 
                     if (d.isDirectory()) {
                         absolutePath += path.sep;
@@ -101,7 +214,7 @@ module.exports = {
                         isDirectory: d.isDirectory(),
                         isFile: d.isFile(),
                         name: d.name,
-                        fullPath: absolutePath,
+                        fullPath: toCDVPath(cdvFullPath, absolutePath),
                         filesystemName: 'temporary',
                         nativeURL: absolutePath
                     });
@@ -127,21 +240,25 @@ module.exports = {
     /**
      * get the file Metadata.
      *
-     * @param {[fullPath: String]} param
+     * @param {[cdvFullPath: String]} param
      *  fullPath: the full path of the file including the extension.
      * @returns {Promise<Object>} - An Object containing the file metadata.
      */
-    getFileMetadata: function ([[fullPath]]) {
+    getFileMetadata: function ([cdvFullPath]) {
+        const nativeFullPath = toNativePath(cdvFullPath);
+        if(!nativeFullPath)
+            return Promise.reject(FileError.NOT_FOUND_ERR)
         return new Promise((resolve, reject) => {
-            fs.stat(fullPath, (err, stats) => {
+            fs.stat(nativeFullPath, (err, stats) => {
                 if (err) {
                     reject(FileError.NOT_FOUND_ERR);
                     return;
                 }
 
                 resolve({
-                    name: path.basename(fullPath),
-                    localURL: fullPath,
+                    name: path.basename(nativeFullPath),
+                    localURL: toCDVPath(cdvFullPath, nativeFullPath),
+                    nativeURL: nativeFullPath,
                     type: '',
                     lastModified: stats.mtime,
                     size: stats.size,
@@ -154,13 +271,16 @@ module.exports = {
     /**
      * get the file or directory Metadata.
      *
-     * @param {[fullPath: String]} param
-     *      fullPath: the full path of the file or directory.
+     * @param {[cdvFullPath: string]} param
+     *      cdvFullPath: the full path of the file or directory.
      * @returns {Promise<Object>} - An Object containing the metadata.
      */
-    getMetadata: function ([[url]]) {
+    getMetadata: function ([cdvFullPath]) {
+        const nativeFullPath = toNativePath(cdvFullPath);
+        if(!nativeFullPath)
+            return Promise.reject(FileError.NOT_FOUND_ERR)
         return new Promise((resolve, reject) => {
-            fs.stat(url, (err, stats) => {
+            fs.stat(nativeFullPath, (err, stats) => {
                 if (err) {
                     reject(FileError.NOT_FOUND_ERR);
                     return;
@@ -177,12 +297,15 @@ module.exports = {
     /**
      * set the file or directory Metadata.
      *
-     * @param {[fullPath: String, metadataObject: Object]} param
-     *      fullPath: the full path of the file including the extension.
+     * @param {[cdvFullPath: string, metadataObject: Object]} param
+     *      cdvFullPath: the full path of the file including the extension.
      *      metadataObject: the object containing metadataValues (currently only supports modificationTime)
      * @returns {Promise<Object>} - An Object containing the file metadata.
      */
-    setMetadata: function ([[fullPath, metadataObject]]) {
+    setMetadata: function ([cdvFullPath, metadataObject]) {
+        const nativeFullPath = toNativePath(cdvFullPath);
+        if(!nativeFullPath)
+            return Promise.reject(FileError.NOT_FOUND_ERR)
         return new Promise((resolve, reject) => {
             const modificationTime = metadataObject.modificationTime;
             const utimesError = function (err) {
@@ -193,7 +316,7 @@ module.exports = {
                 resolve();
             };
 
-            fs.utimes(fullPath, modificationTime, modificationTime, utimesError);
+            fs.utimes(nativeFullPath, modificationTime, modificationTime, utimesError);
         });
     },
 
@@ -208,7 +331,7 @@ module.exports = {
      *
      * @returns {Promise<String>} The string value within the file.
      */
-    readAsText: function ([[fileName, enc, startPos, endPos]]) {
+    readAsText: function ([fileName, enc, startPos, endPos]) {
         return readAs('text', fileName, enc, startPos, endPos);
     },
 
@@ -222,7 +345,7 @@ module.exports = {
      *
      * @returns {Promise<String>} the file as a dataUrl.
      */
-    readAsDataURL: function ([[fileName, startPos, endPos]]) {
+    readAsDataURL: function ([fileName, startPos, endPos]) {
         return readAs('dataURL', fileName, null, startPos, endPos);
     },
 
@@ -236,7 +359,7 @@ module.exports = {
      *
      * @returns {Promise<String>} The file as a binary string.
      */
-    readAsBinaryString: function ([[fileName, startPos, endPos]]) {
+    readAsBinaryString: function ([fileName, startPos, endPos]) {
         return readAs('binaryString', fileName, null, startPos, endPos);
     },
 
@@ -250,30 +373,34 @@ module.exports = {
      *
      * @returns {Promise<Array>} The file as an arrayBuffer.
      */
-    readAsArrayBuffer: function ([[fileName, startPos, endPos]]) {
+    readAsArrayBuffer: function ([fileName, startPos, endPos]) {
         return readAs('arrayBuffer', fileName, null, startPos, endPos);
     },
 
     /**
      * Remove the file or directory
      *
-     * @param {[fullPath: String]} param
-     *   fullePath: The fullPath of the file or directory.
+     * @param {[cdvFullPath: String]} param
+     *   cdvFullPath: The cdvFullPath of the file or directory.
      *
      * @returns {Promise<void>} resolves when file or directory is deleted.
      */
-    remove: function ([[fullPath]]) {
+    remove: function ([cdvFullPath]) {
+        const nativeFullPath = toNativePath(cdvFullPath);
+        if(!nativeFullPath)
+            return Promise.reject(FileError.NOT_FOUND_ERR)
+
         return new Promise((resolve, reject) => {
-            fs.stat(fullPath, (err, stats) => {
+            fs.stat(nativeFullPath, (err, stats) => {
                 if (err) {
                     reject(FileError.NOT_FOUND_ERR);
                     return;
                 }
-                if (stats.isDirectory() && fs.readdirSync(fullPath).length !== 0) {
+                if (stats.isDirectory() && fs.readdirSync(nativeFullPath).length !== 0) {
                     reject(FileError.INVALID_MODIFICATION_ERR);
                     return;
                 }
-                fs.remove(fullPath)
+                fs.remove(nativeFullPath)
                     .then(() => resolve())
                     .catch(() => {
                         reject(FileError.NO_MODIFICATION_ALLOWED_ERR);
@@ -285,20 +412,24 @@ module.exports = {
     /**
      * Remove the file or directory
      *
-     * @param {[fullPath: String]} param
-     *   fullePath: The fullPath of the file or directory.
+     * @param {[cdvFullPath: String]} param
+     *   cdvFullPath: The fullPath of the file or directory.
      *
      * @returns {Promise<void>} resolves when file or directory is deleted.
      */
-    removeRecursively: function ([[fullPath]]) {
+    removeRecursively: function ([cdvFullPath]) {
+        const nativeFullPath = toNativePath(cdvFullPath);
+        if(!nativeFullPath)
+            return Promise.reject(FileError.NOT_FOUND_ERR)
+
         return new Promise((resolve, reject) => {
-            fs.stat(fullPath, (err, stats) => {
+            fs.stat(nativeFullPath, (err, stats) => {
                 if (err) {
                     reject(FileError.NOT_FOUND_ERR);
                     return;
                 }
 
-                fs.remove(fullPath, (err) => {
+                fs.remove(nativeFullPath, (err) => {
                     if (err) {
                         reject(FileError.NO_MODIFICATION_ALLOWED_ERR);
                         return;
@@ -324,13 +455,13 @@ module.exports = {
     /**
      * Get the Parent directory
      *
-     * @param {[url: String]} param
-     *   url: The fullPath to the directory the directory is in.
+     * @param {[cdvUrl: String]} param
+     *   cdvUrl: The fullPath to the directory the directory is in.
      *
      * @returns {Promise<Object>} The parent directory object that is converted to DirectoryEntry by cordova.
      */
-    getParent: function ([[url]]) {
-        const parentPath = path.dirname(url);
+    getParent: function ([cdvUrl]) {
+        const parentPath = path.dirname(cdvUrl);
         const parentName = path.basename(parentPath);
         const fullPath = path.dirname(parentPath) + path.sep;
 
@@ -340,27 +471,36 @@ module.exports = {
     /**
      * Copy File
      *
-     * @param {[srcPath: String, dstDir: String, dstName: String]} param
-     *      srcPath: The fullPath to the file including extension.
-     *      dstDir: The destination directory.
+     * @param {[cdvSrcPath: String, cdvDstDir: String, dstName: String]} param
+     *      cdvSrcPath: The fullPath to the file including extension.
+     *      cdvDstDir: The destination directory.
      *      dstName: The destination file name.
      *
      * @returns {Promise<Object>} The copied file.
      */
-    copyTo: function ([[srcPath, dstDir, dstName]]) {
+    copyTo: function ([cdvSrcPath, cdvDstDir, dstName]) {
+
+        const nativeSrcPath = toNativePath(cdvSrcPath);
+        if(!nativeSrcPath)
+            return Promise.reject(FileError.NOT_FOUND_ERR)
+
+        const nativeDstDir = toNativePath(cdvDstDir);
+        if(!nativeDstDir)
+            return Promise.reject(FileError.NOT_FOUND_ERR)
+
         return new Promise((resolve, reject) => {
-            if (dstName.indexOf('/') !== -1 || path.resolve(srcPath) === path.resolve(dstDir + dstName)) {
+            if (path.resolve(nativeSrcPath) === path.resolve(nativeDstDir + dstName)) {
                 reject(FileError.INVALID_MODIFICATION_ERR);
                 return;
             }
-            if (!dstDir || !dstName) {
-                reject(FileError.INVALID_MODIFICATION_ERR);
-                return;
-            }
-            fs.stat(srcPath)
-                .then((stats) => {
-                    fs.copy(srcPath, dstDir + dstName, { recursive: stats.isDirectory() })
-                        .then(async () => resolve(await stats.isDirectory() ? getDirectory([[dstDir, dstName]]) : getFile([[dstDir, dstName]])))
+            fs.stat(nativeSrcPath)
+                .then((srcStats) => {
+                    fs.copy(nativeSrcPath, nativeDstDir + dstName, { recursive: srcStats.isDirectory() })
+                        .then((stats)=>{
+                            resolve(stats.isDirectory() ?
+                                getDirectory([cdvDstDir, dstName]) :
+                                getFile([cdvDstDir, dstName]))
+                        })
                         .catch(() => reject(FileError.ENCODING_ERR));
                 })
                 .catch(() => reject(FileError.NOT_FOUND_ERR));
@@ -370,27 +510,35 @@ module.exports = {
     /**
      * Move File. Always Overwrites.
      *
-     * @param {[srcPath: String, dstDir: String, dstName: String]} param
-     *      srcPath: The fullPath to the file including extension.
+     * @param {[cdvSrcPath: String, cdvDstDir: String, dstName: String]} param
+     *      cdvSrcPath: The fullPath to the file including extension.
      *      dstDir: The destination directory.
      *      dstName: The destination file name.
      *
      * @returns {Promise<Object>} The moved file.
      */
-    moveTo: function ([[srcPath, dstDir, dstName]]) {
+    moveTo: function ([cdvSrcPath, cdvDstDir, dstName]) {
+        const nativeSrcPath = toNativePath(cdvSrcPath);
+        if(!nativeSrcPath)
+            return Promise.reject(FileError.NOT_FOUND_ERR)
+
+        const nativeDstDir = toNativePath(cdvDstDir);
+        if(!nativeDstDir)
+            return Promise.reject(FileError.NOT_FOUND_ERR)
+
         return new Promise((resolve, reject) => {
-            if (dstName.indexOf('/') !== -1 || path.resolve(srcPath) === path.resolve(dstDir + dstName)) {
+            if (path.resolve(nativeSrcPath) === path.resolve(nativeDstDir + dstName)) {
                 reject(FileError.INVALID_MODIFICATION_ERR);
                 return;
             }
-            if (!dstDir || !dstName) {
-                reject(FileError.INVALID_MODIFICATION_ERR);
-                return;
-            }
-            fs.stat(srcPath)
-                .then((stats) => {
-                    fs.move(srcPath, dstDir + dstName)
-                        .then(async () => resolve(await stats.isDirectory() ? getDirectory([[dstDir, dstName]]) : getFile([[dstDir, dstName]])))
+            fs.stat(nativeSrcPath)
+                .then((srcStats) => {
+                    fs.move(nativeSrcPath, nativeDstDir + dstName)
+                        .then((stats)=>{
+                            resolve(stats.isDirectory() ?
+                                getDirectory([cdvDstDir, dstName]) :
+                                getFile([cdvDstDir, dstName]))
+                        })
                         .catch(() => reject(FileError.ENCODING_ERR));
                 })
                 .catch(() => reject(FileError.NOT_FOUND_ERR));
@@ -400,61 +548,58 @@ module.exports = {
     /**
      * resolve the File system URL as a FileEntry or a DirectoryEntry.
      *
-     * @param {[uri: String]} param
-     *      uri: The full path for the file.
+     * @param {[cdvUri: string]} param
+     *      cdvUri: The full path for the file.
      * @returns {Promise<Object>} The entry for the file or directory.
      */
-    resolveLocalFileSystemURI: function ([[uri]]) {
+    resolveLocalFileSystemURI: function ([cdvUri]) {
+        //let cdvUri = args[0];
+        console.log("resolveLocalFileSystemURI(" + JSON.stringify(arguments) + ")", arguments);
+        console.log("resolveLocalFileSystemURI(" + cdvUri + ")");
+
+        if (/\%5/g.test(cdvUri) || /\%20/g.test(cdvUri)) { // eslint-disable-line no-useless-escape
+            cdvUri = decodeURI(cdvUri);
+            console.log("resolveLocalFileSystemURI(" + cdvUri + ") decoded");
+        }
+
+        let nativeUri = toNativePath(cdvUri);
+        if(!nativeUri)
+            return Promise.reject(FileError.NOT_FOUND_ERR)
+
+
         return new Promise((resolve, reject) => {
             // support for encodeURI
-            if (/\%5/g.test(uri) || /\%20/g.test(uri)) { // eslint-disable-line no-useless-escape
-                uri = decodeURI(uri);
-            }
 
-            // support for cdvfile
-            if (uri.trim().substr(0, 7) === 'cdvfile') {
-                if (uri.indexOf('cdvfile://localhost') === -1) {
-                    reject(FileError.ENCODING_ERR);
-                    return;
-                }
+            console.log("resolveLocalFileSystemURI(" + nativeUri + ") stat");
 
-                const indexApplication = uri.indexOf('application');
-                const indexPersistent = uri.indexOf('persistent');
-                const indexTemporary = uri.indexOf('temporary');
-
-                if (indexApplication !== -1) { // cdvfile://localhost/application/path/to/file
-                    uri = pathsPrefix.applicationDirectory + uri.substr(indexApplication + 12);
-                } else if (indexPersistent !== -1) { // cdvfile://localhost/persistent/path/to/file
-                    uri = pathsPrefix.dataDirectory + uri.substr(indexPersistent + 11);
-                } else if (indexTemporary !== -1) { // cdvfile://localhost/temporary/path/to/file
-                    uri = pathsPrefix.tempDirectory + uri.substr(indexTemporary + 10);
-                } else {
-                    reject(FileError.ENCODING_ERR);
-                    return;
-                }
-            }
-
-            fs.stat(uri, (err, stats) => {
+            fs.stat(nativeUri, (err, stats) => {
                 if (err) {
+                    console.error(nativeUri + " not found ", err, stats);
                     reject(FileError.NOT_FOUND_ERR);
                     return;
                 }
 
-                const baseName = path.basename(uri);
+                const baseName = path.basename(nativeUri);
                 if (stats.isDirectory()) {
                     // add trailing slash if it is missing
-                    if ((uri) && !/\/$/.test(uri)) {
-                        uri += '/';
+                    if ((nativeUri) && !/\/$/.test(nativeUri)) {
+                        nativeUri += '/';
+                    }
+                    if ((cdvUri) && !/\/$/.test(cdvUri)) {
+                        cdvUri += '/';
                     }
 
-                    resolve(returnEntry(false, baseName, uri));
+                    resolve(returnEntry(false, baseName, cdvUri, null, nativeUri));
                 } else {
                     // remove trailing slash if it is present
-                    if (uri && /\/$/.test(uri)) {
-                        uri = uri.substring(0, uri.length - 1);
+                    if (nativeUri && /\/$/.test(nativeUri)) {
+                        nativeUri = nativeUri.substring(0, nativeUri.length - 1);
+                    }
+                    if (cdvUri && /\/$/.test(cdvUri)) {
+                        cdvUri = cdvUri.substring(0, cdvUri.length - 1);
                     }
 
-                    resolve(returnEntry(true, baseName, uri));
+                    resolve(returnEntry(true, baseName, cdvUri, null, nativeUri));
                 }
             });
         });
@@ -466,19 +611,24 @@ module.exports = {
      * @returns {Object} returns an object with all the paths.
      */
     requestAllPaths: function () {
-        return pathsPrefix;
+        return cdvPathsPrefix;
     },
 
     /**
      * Write to a file.
      *
-     * @param {[fileName: String, data: String, position: Number]} param
-     *      fileName: the full path of the file including fileName and extension.
+     * @param {[cdvFileName: string, data: string, position: number]} param
+     *      cdvFileName: the full path of the file including fileName and extension.
      *      data: the data to be written to the file.
      *      position: the position offset to start writing from.
      * @returns {Promise<Object>} An object with information about the amount of bytes written.
      */
-    write: function ([[fileName, data, position]]) {
+    write: function ([cdvFileName, data, position]) {
+
+        const nativeFileName = toNativePath(cdvFileName);
+        if(!nativeFileName)
+            return Promise.reject(FileError.NOT_FOUND_ERR)
+
         return new Promise((resolve, reject) => {
             if (!data) {
                 reject(FileError.INVALID_MODIFICATION_ERR);
@@ -488,7 +638,7 @@ module.exports = {
             const buf = Buffer.from(data);
             let bytesWritten = 0;
 
-            fs.open(fileName, 'a')
+            fs.open(nativeFileName, 'a')
                 .then(fd => {
                     return fs.write(fd, buf, 0, buf.length, position)
                         .then(bw => { bytesWritten = bw.bytesWritten; })
@@ -502,14 +652,18 @@ module.exports = {
     /**
      * Truncate the file.
      *
-     * @param {[fullPath: String, size: Number]} param
-     *      fullPath: the full path of the file including file extension
+     * @param {[cdvFullPath: string, size: number]} param
+     *      cdvFullPath: the full path of the file including file extension
      *      size: the length of the file to truncate to.
      * @returns {Promise}
      */
-    truncate: function ([[fullPath, size]]) {
+    truncate: function ([cdvFullPath, size]) {
+        const nativeFullPath = toNativePath(cdvFullPath);
+        if(!nativeFullPath)
+            return Promise.reject(FileError.NOT_FOUND_ERR)
+
         return new Promise((resolve, reject) => {
-            fs.truncate(fullPath, size, err => {
+            fs.truncate(nativeFullPath, size, err => {
                 if (err) {
                     reject(FileError.INVALID_STATE_ERR);
                     return;
@@ -520,7 +674,7 @@ module.exports = {
         });
     },
 
-    requestFileSystem: function ([[type, size]]) {
+    requestFileSystem: function ([type, size]) {
         if (type !== 0 && type !== 1) {
             throw new Error(FileError.INVALID_MODIFICATION_ERR);
         }
@@ -538,18 +692,23 @@ module.exports = {
 /**
  * Read the file contents as specified.
  *
- * @param {[what: String, fileName: String, enc: String, startPos: number, endPos: number]} param
+ * @param {[what: string, cdvFileName: string, encoding: string, startPos: number, endPos: number]} param
  *      what: what to read the file as. accepts 'text', 'dataURL', 'arrayBuffer' and 'binaryString'
- *      fileName: The fullPath of the file to be read.
- *      enc: The encoding to use to read the file.
+ *      cdvFileName: The fullPath of the file to be read.
+ *      encoding: The encoding to use to read the file.
  *      startPos: The start position from which to begin reading the file.
  *      endPos: The end position at which to stop reading the file.
  *
  * @returns {Promise<String>} The string value within the file.
  */
-function readAs (what, fullPath, encoding, startPos, endPos) {
+function readAs (what, cdvFileName, encoding, startPos, endPos) {
+
+    const nativeFileName = toNativePath(cdvFileName);
+    if(!nativeFileName)
+        return Promise.reject(FileError.NOT_FOUND_ERR)
+
     return new Promise((resolve, reject) => {
-        fs.open(fullPath, 'r', (err, fd) => {
+        fs.open(nativeFileName, 'r', (err, fd) => {
             if (err) {
                 reject(FileError.NOT_FOUND_ERR);
                 return;
@@ -583,28 +742,31 @@ function readAs (what, fullPath, encoding, startPos, endPos) {
 /**
  * Get the file given the path and fileName.
  *
- * @param {[dstDir: String, dstName: String, options: Object]} param
- *   dstDir: The fullPath to the directory the file is in.
+ * @param {[cdvDstDir: string, dstName: string, options?: Object]} param
+ *   cdvDstDir: The fullPath to the directory the file is in.
  *   dstName: The filename including the extension.
  *   options: fileOptions {create: boolean, exclusive: boolean}.
  *
  * @returns {Promise<Object>} The file object that is converted to FileEntry by cordova.
  */
-function getFile ([[dstDir, dstName, options]]) {
-    const absolutePath = path.join(dstDir, dstName);
+function getFile ([cdvDstDir, dstName, options]) {
+    const absoluteCDVPath = path.join(cdvDstDir, dstName);
+    const absoluteNativePath = toNativePath(absoluteCDVPath);
+    if(!absoluteNativePath)
+        return Promise.reject(FileError.NOT_FOUND_ERR)
     options = options || {};
     return new Promise((resolve, reject) => {
-        fs.stat(absolutePath, (err, stats) => {
+        fs.stat(absoluteNativePath, (err, stats) => {
             if (err && err.message && err.message.indexOf('ENOENT') !== 0) {
                 reject(FileError.INVALID_STATE_ERR);
                 return;
             }
 
             const exists = !err;
-            const baseName = path.basename(absolutePath);
+            const baseName = path.basename(absoluteNativePath);
 
             function createFile () {
-                fs.open(absolutePath, 'w', (err, fd) => {
+                fs.open(absoluteNativePath, 'w', (err, fd) => {
                     if (err) {
                         reject(FileError.INVALID_STATE_ERR);
                         return;
@@ -615,7 +777,7 @@ function getFile ([[dstDir, dstName, options]]) {
                             reject(FileError.INVALID_STATE_ERR);
                             return;
                         }
-                        resolve(returnEntry(true, baseName, absolutePath.replace('\\', '/')));
+                        resolve(returnEntry(true, baseName, absoluteCDVPath, null, absoluteNativePath));
                     });
                 });
             }
@@ -646,7 +808,7 @@ function getFile ([[dstDir, dstName, options]]) {
             } else {
                 // Otherwise, if no other error occurs, getFile must return a FileEntry
                 // corresponding to path.
-                resolve(returnEntry(true, baseName, absolutePath.replace('\\', '/')));
+                resolve(returnEntry(true, baseName, absoluteCDVPath, null, absoluteNativePath));
             }
         });
     });
@@ -655,25 +817,29 @@ function getFile ([[dstDir, dstName, options]]) {
 /**
  * Get the directory given the path and directory name.
  *
- * @param {[dstDir: String, dstName: String, options: Object]} param
- *   dstDir: The fullPath to the directory the directory is in.
+ * @param {[cdvDstDir: string, dstName: string, options?: Object]} param
+ *   cdvDstDir: The fullPath to the directory the directory is in.
  *   dstName: The name of the directory.
  *   options: options {create: boolean, exclusive: boolean}.
  *
  * @returns {Promise<Object>} The directory object that is converted to DirectoryEntry by cordova.
  */
-function getDirectory ([[dstDir, dstName, options]]) {
-    const absolutePath = dstDir + dstName;
+function getDirectory ([cdvDstDir, dstName, options]) {
+    const absoluteCDVPath = cdvDstDir + dstName;
+    const absoluteNativePath = toNativePath(absoluteCDVPath);
+    if(!absoluteNativePath)
+        return Promise.reject(FileError.NOT_FOUND_ERR)
+
     options = options || {};
     return new Promise((resolve, reject) => {
-        fs.stat(absolutePath, (err, stats) => {
+        fs.stat(absoluteNativePath, (err, stats) => {
             if (err && err.message && err.message.indexOf('ENOENT') !== 0) {
                 reject(FileError.INVALID_STATE_ERR);
                 return;
             }
 
             const exists = !err;
-            const baseName = path.basename(absolutePath);
+            const baseName = path.basename(absoluteNativePath);
             if (options.create === true && options.exclusive === true && exists) {
                 // If create and exclusive are both true, and the path already exists,
                 // getDirectory must fail.
@@ -682,16 +848,16 @@ function getDirectory ([[dstDir, dstName, options]]) {
                 // If create is true, the path doesn't exist, and no other error occurs,
                 // getDirectory must create it as a zero-length file and return a corresponding
                 // MyDirectoryEntry.
-                fs.mkdir(absolutePath, (err) => {
+                fs.mkdir(absoluteNativePath, (err) => {
                     if (err) {
                         reject(FileError.PATH_EXISTS_ERR);
                         return;
                     }
-                    resolve(returnEntry(false, baseName, absolutePath));
+                    resolve(returnEntry(false, baseName, absoluteCDVPath, null, absoluteNativePath));
                 });
             } else if (options.create === true && exists) {
                 if (stats.isDirectory()) {
-                    resolve(returnEntry(false, baseName, absolutePath));
+                    resolve(returnEntry(false, baseName, absoluteCDVPath, null, absoluteNativePath));
                 } else {
                     reject(FileError.INVALID_MODIFICATION_ERR);
                 }
@@ -705,7 +871,7 @@ function getDirectory ([[dstDir, dstName, options]]) {
             } else {
                 // Otherwise, if no other error occurs, getDirectory must return a
                 // DirectoryEntry corresponding to path.
-                resolve(returnEntry(false, baseName, absolutePath));
+                resolve(returnEntry(false, baseName, absoluteCDVPath, null, absoluteNativePath));
             }
         });
     });
