@@ -262,7 +262,15 @@ to config.xml in order for the application to find previously stored files.
     <!-- electron -->
     <platform name="electron">
         <framework src="src/electron" />
-        
+
+        <js-module src="www/electron/FileSystem.js" name="electronFileSystem">
+            <merges target="FileSystem" />
+        </js-module>
+
+        <js-module src="www/fileSystems-roots.js" name="fileSystems-roots">
+            <runs/>
+        </js-module>
+
         <js-module src="www/fileSystemPaths.js" name="fileSystemPaths">
             <merges target="cordova" />
             <runs />
