@@ -958,13 +958,10 @@ const filePlugin = {
      */
     resolveLocalFileSystemURI: function ([uri])
     {
-        console.log("resolveLocalFileSystemURI(" + uri + ")");
-
         const entry = getEntry(uri)
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
 
-        console.log("resolveLocalFileSystemURI(" + entry.getOSPath() + ") stat");
         return fs.stat(entry.getOSPath())
             .then((stats) =>
             {
@@ -1031,7 +1028,7 @@ const filePluginUtil = {
      */
     filePathToUrl: (path)=>
     {
-        const entry = getEntryForOSPath(url);
+        const entry = getEntryForOSPath(path);
         if (!entry)
             return null;
         return entry.getEFSUrl();
