@@ -93,6 +93,11 @@ const allFileSystems = {};
  */
 const allPaths = {};
 
+/**
+ * @type {Record<string, string>}
+ */
+const allUrls = {};
+
 class FileLocation
 {
 
@@ -128,7 +133,8 @@ class FileLocation
             name: name,
             root: createEntryInfo(false, "root:" + name, "/", this)
         };
-        allPaths[name + "Directory"] = this.efsUrlPrefix;
+        allPaths[name + "Directory"] = this.osPathPrefix;
+        allUrls[name + "Directory"] = this.efsUrlPrefix;
     }
 
     /**
@@ -979,7 +985,7 @@ const filePlugin = {
      */
     requestAllPaths: function ()
     {
-        return allPaths;
+        return allUrls;
     },
 
 
@@ -1008,6 +1014,13 @@ const filePlugin = {
 
 // util api for use in dependent plugins
 const filePluginUtil = {
+
+    paths : ()=>{
+        return allPaths;
+    },
+    urls : ()=>{
+        return allUrls;
+    },
     /**
      * get absolute file path for given url (cdvfile://, efs://)
      * @param {string} url
