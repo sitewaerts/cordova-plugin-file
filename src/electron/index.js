@@ -1168,7 +1168,7 @@ function getFile(parentUri, fileName, options)
     {
         fs.stat(entry.getOSPath(), (err, stats) =>
         {
-            if (!isNotFoundError(err))
+            if (err && !isNotFoundError(err))
                 return reject(FileError.NOT_FOUND_ERR);
 
             const exists = !err;
@@ -1265,7 +1265,7 @@ function getDirectory(parentUri, dirName, options)
     {
         fs.stat(entry.getOSPath(), (err, stats) =>
         {
-            if (!isNotFoundError(err))
+            if (err && !isNotFoundError(err))
                 return reject(FileError.INVALID_STATE_ERR);
 
             const exists = !err;
