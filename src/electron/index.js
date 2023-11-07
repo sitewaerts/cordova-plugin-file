@@ -412,7 +412,7 @@ const pluginId = require('../../package.json').cordova.id
 const pluginVariables = require(path.join(app.getAppPath(), '..', 'electron.json')).installed_plugins[pluginId] || {};
 const appPackageName = pluginVariables['PACKAGE_NAME']
 
-const FILE_LOCATION_APPLICATION = new FileLocation("application", path.dirname(app.getAppPath()), false);
+const FILE_LOCATION_APPLICATION = new FileLocation("application", app.getAppPath(), false);
 const FILE_LOCATION_DATA = new FileLocation("data", path.join(app.getPath('userData'), appPackageName), true);
 const FILE_LOCATION_TEMP = new FileLocation("temp", path.join(app.getPath('temp'), appPackageName), true);
 //const FILE_LOCATION_CACHE = new FileLocation("cache", path.join(app.getPath('cache'), appPackageName), true);
