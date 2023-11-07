@@ -407,43 +407,6 @@ function getEntryForOSPath(osPath)
     return null;
 }
 
-// HACK to get VARIABLES for plugin. TODO: verify if this works in released/packaged app
-const pluginId = require('../../package.json').cordova.id
-const pluginVariables = require(path.join(app.getAppPath(), '..', 'electron.json')).installed_plugins[pluginId] || {};
-const appPackageName = pluginVariables['PACKAGE_NAME']
-
-const FILE_LOCATION_APPLICATION = new FileLocation("application", app.getAppPath(), false);
-const FILE_LOCATION_DATA = new FileLocation("data", path.join(app.getPath('userData'), appPackageName), true);
-const FILE_LOCATION_TEMP = new FileLocation("temp", path.join(app.getPath('temp'), appPackageName), true);
-//const FILE_LOCATION_CACHE = new FileLocation("cache", path.join(app.getPath('cache'), appPackageName), true);
-const FILE_LOCATION_DOCUMENTS = new FileLocation("documents", app.getPath('documents'), true);
-
-app.whenReady().then(async () =>
-{
-
-    await Promise.all(fileLocations.map((fl)=>{return fl.init()}));
-
-    /**
-     *
-     * @param {GlobalRequest} req
-     * @return {Response|Promise<GlobalResponse>}
-     */
-    function handleRequest(req)
-    {
-        const entry = getEntry(req.url);
-        if (!entry)
-            return new Response(null, {status: 404});
-        const fileUrl = entry.getFileUrl();
-        if (!fileUrl)
-            return new Response(null, {status: 404});
-        return net.fetch(fileUrl);
-    }
-
-    if(!protocol.isProtocolHandled(CDV_SCHEME))
-        protocol.handle(CDV_SCHEME, handleRequest)
-    if(!protocol.isProtocolHandled(EFS_SCHEME))
-        protocol.handle(EFS_SCHEME, handleRequest)
-})
 
 const FileError = {
     // Found in DOMException
@@ -1081,11 +1044,85 @@ const plugin = function(action, args, callbackContext){
     return true;
 }
 
+let FILE_LOCATION_APPLICATION;
+let FILE_LOCATION_DATA;
+let FILE_LOCATION_TEMP;
+let FILE_LOCATION_CACHE;
+let FILE_LOCATION_DOCUMENTS;
+
+
+let _initialized = false;
+
+/**
+ * @param {Record<string, string>} variables
+ * @param {(serviceName:string)=>Promise<any>} serviceLoader
+ * @returns {Promise<void>}
+ */
+function init(variables, serviceLoader){
+    if(_initialized)
+        return Promise.reject(new Error("cordova-plugin-file already initialized"));
+    _initialized = true;
+
+    const appPackageName = variables['PACKAGE_NAME']
+    if(!appPackageName || appPackageName.length<1)
+        return Promise.reject(new Error("cordova-plugin-file cannot find PACKAGE_NAME"));
+
+    FILE_LOCATION_APPLICATION = new FileLocation("application", app.getAppPath(), false);
+    FILE_LOCATION_DATA = new FileLocation("data", path.join(app.getPath('userData'), appPackageName), true);
+    FILE_LOCATION_TEMP = new FileLocation("temp", path.join(app.getPath('temp'), appPackageName), true);
+//FILE_LOCATION_CACHE = new FileLocation("cache", path.join(app.getPath('cache'), appPackageName), true);
+    FILE_LOCATION_DOCUMENTS = new FileLocation("documents", app.getPath('documents'), true);
+
+    return app.whenReady().then(async () =>
+    {
+
+        await Promise.all(fileLocations.map((fl)=>{return fl.init()}));
+
+        /**
+         *
+         * @param {GlobalRequest} req
+         * @return {Response|Promise<GlobalResponse>}
+         */
+        function handleRequest(req)
+        {
+            const entry = getEntry(req.url);
+            if (!entry)
+                return new Response(null, {status: 404});
+            const fileUrl = entry.getFileUrl();
+            if (!fileUrl)
+                return new Response(null, {status: 404});
+            return net.fetch(fileUrl);
+        }
+
+        if(!protocol.isProtocolHandled(CDV_SCHEME))
+            protocol.handle(CDV_SCHEME, handleRequest)
+        if(!protocol.isProtocolHandled(EFS_SCHEME))
+            protocol.handle(EFS_SCHEME, handleRequest)
+    })
+
+
+}
+/**
+ * @param {Record<string, string>} variables
+ * @returns {Promise<void>}
+ */
+plugin.init = init;
+
 plugin.util = filePluginUtil;
 
 // backwards compatibility: attach api methods for direct access from old cordova-electron platform impl
 Object.keys(filePlugin).forEach((apiMethod)=>{
-    plugin[apiMethod] = filePlugin[apiMethod].bind(filePlugin);
+    plugin[apiMethod] = async ()=>{
+        if(!_initialized)
+        {
+            // HACK to get VARIABLES for plugin. TODO: verify if this works in released/packaged app
+            const pluginId = require('../../package.json').cordova.id
+            const pluginVariables = require(path.join(app.getAppPath(), '..', 'electron.json'))['installed_plugins'][pluginId] || {};
+
+            await init(pluginVariables);
+        }
+        return filePlugin[apiMethod].apply(arguments);
+    }
 });
 
 module.exports = plugin;
