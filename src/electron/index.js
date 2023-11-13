@@ -299,6 +299,22 @@ class Entry
     }
 
     /**
+     *
+     * @return {Promise<EntryInfo>}
+     */
+    resolveInfo(){
+        return fs.stat(this.getOSPath())
+            .then((stats) =>
+            {
+                return this.getInfo(!stats.isDirectory());
+            }, (error) =>
+            {
+                return notFoundOrError(error, 'cannot stat ' + this.getOSPath())
+            })
+
+    }
+
+    /**
      * @return {Entry}
      */
     getParent()
@@ -759,8 +775,7 @@ const filePlugin = {
         const entry = getEntry(uri);
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
-        const parentEntry = entry.getParent();
-        return getDirectory(parentEntry.getEFSUrl(), parentEntry.name, {create: false});
+        return entry.getParent().resolveInfo();
     },
 
     /**
@@ -930,15 +945,7 @@ const filePlugin = {
         const entry = getEntry(uri)
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
-
-        return fs.stat(entry.getOSPath())
-            .then((stats) =>
-            {
-                return entry.getInfo(!stats.isDirectory());
-            }, (error) =>
-            {
-                return notFoundOrError(error, 'cannot stat ' + entry.getOSPath())
-            })
+        return entry.resolveInfo();
     },
 
     /**
