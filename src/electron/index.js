@@ -140,18 +140,22 @@ class FileLocation
     /**
      * @returns {Promise<void>}
      */
-    init(){
+    init()
+    {
 
         return fs.stat(this.osPathBase)
-            .then((stats)=>{
-                if(!stats.isDirectory())
+            .then((stats) =>
+            {
+                if (!stats.isDirectory())
                     return Promise.reject({message: this.osPathBase + ' exists but is not a directory', stats: stats});
-            }, (error)=>{
-                if(!isNotFoundError(error))
-                    return Promise.reject({message: 'cannot stat ' + this.osPathBase, cause: error });
+            }, (error) =>
+            {
+                if (!isNotFoundError(error))
+                    return Promise.reject({message: 'cannot stat ' + this.osPathBase, cause: error});
                 return fs.mkdir(this.osPathBase, {recursive: true})
-                    .catch((error)=>{
-                        return Promise.reject({message: 'cannot create ' + this.osPathBase, cause: error });
+                    .catch((error) =>
+                    {
+                        return Promise.reject({message: 'cannot create ' + this.osPathBase, cause: error});
                     })
             })
     }
@@ -302,7 +306,8 @@ class Entry
      *
      * @return {Promise<EntryInfo>}
      */
-    resolveInfo(){
+    resolveInfo()
+    {
         return fs.stat(this.getOSPath())
             .then((stats) =>
             {
@@ -620,7 +625,7 @@ const filePlugin = {
         const entry = getEntry(uri);
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
-        if(!entry.root.modifiable)
+        if (!entry.root.modifiable)
             return Promise.reject(FileError.INVALID_MODIFICATION_ERR)
 
         return fs.utimes(entry.getOSPath(), modificationTime, modificationTime)
@@ -699,7 +704,7 @@ const filePlugin = {
         const entry = getEntry(uri);
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
-        if(!entry.root.modifiable)
+        if (!entry.root.modifiable)
             return Promise.reject(FileError.INVALID_MODIFICATION_ERR)
 
         return fs.stat(entry.getOSPath())
@@ -732,7 +737,7 @@ const filePlugin = {
         const entry = getEntry(uri);
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
-        if(!entry.root.modifiable)
+        if (!entry.root.modifiable)
             return Promise.reject(FileError.INVALID_MODIFICATION_ERR)
 
         return fs.stat(entry.getOSPath()).then((stats) =>
@@ -798,7 +803,7 @@ const filePlugin = {
             return Promise.reject(FileError.NOT_FOUND_ERR)
 
         const dstEntry = dstParentEntry.getChild(dstName);
-        if(!dstEntry.root.modifiable)
+        if (!dstEntry.root.modifiable)
             return Promise.reject(FileError.INVALID_MODIFICATION_ERR)
 
 
@@ -838,7 +843,7 @@ const filePlugin = {
         const srcEntry = getEntry(srcUri);
         if (!srcEntry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
-        if(!srcEntry.root.modifiable)
+        if (!srcEntry.root.modifiable)
             return Promise.reject(FileError.INVALID_MODIFICATION_ERR)
 
         const dstParentEntry = getEntry(dstParentUri);
@@ -846,7 +851,7 @@ const filePlugin = {
             return Promise.reject(FileError.NOT_FOUND_ERR)
 
         const dstEntry = dstParentEntry.getChild(dstName);
-        if(!dstEntry.root.modifiable)
+        if (!dstEntry.root.modifiable)
             return Promise.reject(FileError.INVALID_MODIFICATION_ERR)
 
         if (path.resolve(srcEntry.getOSPath()) === path.resolve(dstEntry.getOSPath()))
@@ -876,7 +881,7 @@ const filePlugin = {
      * Write to a file.
      *
      * @param {string} uri: the full path of the file including fileName and extension.
-     * @param {string} data: the data to be written to the file.
+     * @param {string | ArrayBuffer} data: the data to be written to the file.
      * @param {number} [position = 0]: the position offset to start writing from.
      * @returns {Promise<number>} An object with information about the amount of bytes written.
      */
@@ -888,7 +893,7 @@ const filePlugin = {
         const entry = getEntry(uri);
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
-        if(!entry.root.modifiable)
+        if (!entry.root.modifiable)
             return Promise.reject(FileError.INVALID_MODIFICATION_ERR)
 
         return new Promise((resolve, reject) =>
@@ -896,7 +901,7 @@ const filePlugin = {
             const buf = Buffer.from(data);
             let bytesWritten = 0;
 
-            fs.open(entry.getOSPath(), 'a')
+            fs.open(entry.getOSPath(), 'w')
                 .then(fd =>
                 {
                     return fs.write(fd, buf, 0, buf.length, position)
@@ -907,7 +912,11 @@ const filePlugin = {
                         .finally(() => fs.close(fd));
                 })
                 .then(() => resolve(bytesWritten))
-                .catch(() => reject(FileError.INVALID_MODIFICATION_ERR));
+                .catch((error) =>
+                {
+                    console.error("cannot write file " + entry.getOSPath(), error)
+                    reject(FileError.INVALID_MODIFICATION_ERR)
+                });
         });
     },
 
@@ -923,13 +932,15 @@ const filePlugin = {
         const entry = getEntry(uri);
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
-        if(!entry.root.modifiable)
+        if (!entry.root.modifiable)
             return Promise.reject(FileError.INVALID_MODIFICATION_ERR)
 
         return fs.truncate(entry.getOSPath(), size)
-            .then(()=>{
+            .then(() =>
+            {
                 return size
-            }, (error)=>{
+            }, (error) =>
+            {
                 return notFoundOrError(error, 'cannot truncate ' + entry.getOSPath())
             })
     },
@@ -985,10 +996,12 @@ const filePlugin = {
 // util api for use in dependent plugins
 const filePluginUtil = {
 
-    paths : ()=>{
+    paths: () =>
+    {
         return allPaths;
     },
-    urls : ()=>{
+    urls: () =>
+    {
         return allUrls;
     },
     /**
@@ -996,7 +1009,7 @@ const filePluginUtil = {
      * @param {string} url
      * @returns {string | null}
      */
-    urlToFilePath: (url)=>
+    urlToFilePath: (url) =>
     {
         const entry = getEntry(url);
         if (!entry)
@@ -1009,7 +1022,7 @@ const filePluginUtil = {
      * @param {string} path
      * @returns {string | null}
      */
-    filePathToUrl: (path)=>
+    filePathToUrl: (path) =>
     {
         const entry = getEntryForOSPath(path);
         if (!entry)
@@ -1021,7 +1034,8 @@ const filePluginUtil = {
      * @param {string} url
      * @returns {Promise<EntryInfo>} The entry for the file or directory.
      */
-    resolveLocalFileSystemURI: (url)=>{
+    resolveLocalFileSystemURI: (url) =>
+    {
         return filePlugin.resolveLocalFileSystemURI([url]);
     }
 }
@@ -1033,7 +1047,8 @@ const filePluginUtil = {
  * @param {CallbackContext} callbackContext
  * @returns {boolean} indicating if action is available in plugin
  */
-const plugin = function(action, args, callbackContext){
+const plugin = function (action, args, callbackContext)
+{
     if (!filePlugin[action])
         return false;
     try
@@ -1042,11 +1057,10 @@ const plugin = function(action, args, callbackContext){
             callbackContext.success.bind(callbackContext),
             callbackContext.error.bind(callbackContext)
         );
-    }
-    catch(e)
+    } catch (e)
     {
         console.error(action + ' failed', e);
-        callbackContext.error({message: action + ' failed', cause:e });
+        callbackContext.error({message: action + ' failed', cause: e});
     }
     return true;
 }
@@ -1065,13 +1079,14 @@ let _initialized = false;
  * @param {(serviceName:string)=>Promise<any>} serviceLoader
  * @returns {Promise<void>}
  */
-function init(variables, serviceLoader){
-    if(_initialized)
+function init(variables, serviceLoader)
+{
+    if (_initialized)
         return Promise.reject(new Error("cordova-plugin-file already initialized"));
     _initialized = true;
 
     const appPackageName = variables['PACKAGE_NAME']
-    if(!appPackageName || appPackageName.length<1)
+    if (!appPackageName || appPackageName.length < 1)
         return Promise.reject(new Error("cordova-plugin-file cannot find PACKAGE_NAME"));
 
     FILE_LOCATION_APPLICATION = new FileLocation("application", app.getAppPath(), false);
@@ -1083,7 +1098,10 @@ function init(variables, serviceLoader){
     return app.whenReady().then(async () =>
     {
 
-        await Promise.all(fileLocations.map((fl)=>{return fl.init()}));
+        await Promise.all(fileLocations.map((fl) =>
+        {
+            return fl.init()
+        }));
 
         /**
          *
@@ -1101,14 +1119,15 @@ function init(variables, serviceLoader){
             return net.fetch(fileUrl);
         }
 
-        if(!protocol.isProtocolHandled(CDV_SCHEME))
+        if (!protocol.isProtocolHandled(CDV_SCHEME))
             protocol.handle(CDV_SCHEME, handleRequest)
-        if(!protocol.isProtocolHandled(EFS_SCHEME))
+        if (!protocol.isProtocolHandled(EFS_SCHEME))
             protocol.handle(EFS_SCHEME, handleRequest)
     })
 
 
 }
+
 /**
  * @param {Record<string, string>} variables
  * @returns {Promise<void>}
@@ -1118,9 +1137,11 @@ plugin.init = init;
 plugin.util = filePluginUtil;
 
 // backwards compatibility: attach api methods for direct access from old cordova-electron platform impl
-Object.keys(filePlugin).forEach((apiMethod)=>{
-    plugin[apiMethod] = async ()=>{
-        if(!_initialized)
+Object.keys(filePlugin).forEach((apiMethod) =>
+{
+    plugin[apiMethod] = async () =>
+    {
+        if (!_initialized)
         {
             // HACK to get VARIABLES for plugin. TODO: verify if this works in released/packaged app
             const pluginId = require('../../package.json').cordova.id
@@ -1219,7 +1240,7 @@ function getFile(parentUri, fileName, options)
 
             function createFile()
             {
-                if(!entry.root.modifiable)
+                if (!entry.root.modifiable)
                     return reject(FileError.INVALID_MODIFICATION_ERR)
 
                 fs.open(entry.getOSPath(), 'w', (err, fd) =>
@@ -1324,7 +1345,7 @@ function getDirectory(parentUri, dirName, options)
                 // If create is true, the path doesn't exist, and no other error occurs,
                 // getDirectory must create it as a zero-length file and return a corresponding
                 // MyDirectoryEntry.
-                if(!entry.root.modifiable)
+                if (!entry.root.modifiable)
                     return reject(FileError.INVALID_MODIFICATION_ERR)
 
                 fs.mkdir(entry.getOSPath(), (err) =>
