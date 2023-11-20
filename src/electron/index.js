@@ -41,14 +41,14 @@ const mime = require('mime');
  * @property {string} name
  * @property {string} fullPath
  * @property {string | null} [filesystemName]
- * @property {string} nativeURL
+ * @property {string?} nativeURL
  */
 
 /**
  * @typedef {Object} FileMetadata
  * @property {string}  name
  * @property {string}  localURL
- * @property {string}  nativeURL
+ * @property {string?}  nativeURL
  * @property {string}  type
  * @property {number}  lastModified
  * @property {number}  size
@@ -172,14 +172,14 @@ class FileLocation
             url = sanitizeUrl(url);
         if (!url)
             return null;
-        else if (this.equalsEFSUrlPrefixRE.test(url))
-            return new Entry(this, sanitizePath(url.replace(this.equalsEFSUrlPrefixRE, '')));
-        else if (this.startsWithEFSUrlPrefixRE.test(url))
-            return new Entry(this, sanitizePath(url.replace(this.startsWithEFSUrlPrefixRE, '')));
         else if (this.equalsCDVUrlPrefixRE.test(url))
             return new Entry(this, sanitizePath(url.replace(this.equalsCDVUrlPrefixRE, '')));
         else if (this.startsWithCDVUrlPrefixRE.test(url))
             return new Entry(this, sanitizePath(url.replace(this.startsWithCDVUrlPrefixRE, '')));
+        else if (this.equalsEFSUrlPrefixRE.test(url))
+            return new Entry(this, sanitizePath(url.replace(this.equalsEFSUrlPrefixRE, '')));
+        else if (this.startsWithEFSUrlPrefixRE.test(url))
+            return new Entry(this, sanitizePath(url.replace(this.startsWithEFSUrlPrefixRE, '')));
         return null;
     }
 
@@ -217,7 +217,7 @@ class FileLocation
      */
     matchesUrl(url)
     {
-        return url && (this.matchesEFSUrl(url) || this.matchesCDVUrl(url))
+        return url && (this.matchesCDVUrl(url) || this.matchesEFSUrl(url))
     }
 
     /**
@@ -405,8 +405,9 @@ function getEntry(url)
 
     for (const fl of fileLocations)
     {
-        if (fl.matchesUrl(url))
-            return fl.getEntry(url, true);
+        const e = fl.getEntry(url, true);
+        if(e)
+            return e;
     }
     return null;
 }
@@ -479,7 +480,7 @@ function notFoundOrError(error, msg)
  * @param {boolean} isFile - is the object a file or a directory. true for file and false for directory.
  * @param {string} name - the name of the file/directory.
  * @param {string} fullPath - the full path to the file/directory (MUST NOT contain protocol and/or file system name)
- * @param {FileLocation} [fl] - the name of the filesystem.
+ * @param {FileLocation} [fl] - used to resolve the name of the filesystem.
  * @returns {EntryInfo}
  */
 function createEntryInfo(isFile, name, fullPath, fl)
@@ -505,7 +506,7 @@ function createEntryInfo(isFile, name, fullPath, fl)
         isDirectory: !isFile,
         name,
         fullPath: fullPath,
-        nativeURL: fl.efsUrlBase + fullPath,
+        // nativeURL: fl.efsUrlBase + fullPath,
         filesystemName: fl.name
     };
 }
@@ -576,7 +577,7 @@ const filePlugin = {
                 return {
                     name: info.name,
                     localURL: info.fullPath,
-                    nativeURL: info.nativeURL,
+                    // nativeURL: info.nativeURL,
                     type: mime.getType(entry.getOSPath()),
                     lastModified: stats.mtime,
                     size: stats.size,
