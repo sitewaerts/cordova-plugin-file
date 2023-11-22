@@ -22,8 +22,8 @@
 const {Buffer} = require('buffer');
 const path = require('path');
 const fs = require('fs-extra');
-const {app, net, protocol} = require('electron');
-const {pathToFileURL} = require('url')
+const {app, net} = require('electron');
+const url = require('url')
 const reEscape = require('regexp.escape');
 const mime = require('mime');
 
@@ -64,6 +64,8 @@ const mime = require('mime');
 
 const PATH_SEP = '/';
 
+const FILE_SCHEME = "file"
+
 const EFS_SCHEME = "efs"
 const EFS_BASE = EFS_SCHEME + "://" // no host name
 const EFS_PREFIX = EFS_BASE + PATH_SEP
@@ -98,6 +100,85 @@ const allPaths = {};
  */
 const allUrls = {};
 
+class FileUrlDef
+{
+    /**
+     *
+     * @param {string} base
+     * @param {boolean} [skipNativeUrl]
+     */
+    constructor(base, skipNativeUrl)
+    {
+        if (base.endsWith(PATH_SEP))
+            base = base.substring(0, base.length);
+
+        this.base = base;
+        this.prefix = this.base + PATH_SEP
+        this.equalsPrefixRE = new RegExp("^" + reEscape(this.base) + reEscape(PATH_SEP) + '?$', "i"); // match ignoring case
+        this.startsWithPrefixRE = new RegExp("^" + reEscape(this.prefix), "i"); // match ignoring case
+
+        this.skipNativeUrl = !!skipNativeUrl;
+    }
+
+    /**
+     * @param {string} url
+     * @return {boolean}
+     */
+    matchesUrl(url)
+    {
+        return url &&
+            (this.equalsPrefixRE.test(url) || this.startsWithPrefixRE.test(url))
+    }
+
+    /**
+     *
+     * @param {string} fullPath
+     * @returns {string | undefined}
+     */
+    buildNativeURL(fullPath){
+        return this.skipNativeUrl ? undefined : this.base + fullPath;
+    }
+
+}
+
+class FileOSDef
+{
+    /**
+     *
+     * @param {string} osDirPath
+     */
+    constructor(osDirPath)
+    {
+        this.base = osDirPath.endsWith(PATH_SEP) ? osDirPath.substring(0, osDirPath.length - 1) : osDirPath;
+        this.prefix = this.base + PATH_SEP
+        this.equalsPrefixRE = new RegExp("^" + reEscape(this.base) + reEscape(PATH_SEP) + '?$', "i"); // match ignoring case
+        this.startsWithPrefixRE = new RegExp("^" + reEscape(this.prefix), "i"); // match ignoring case
+    }
+
+    /**
+     * @param {string} osPath
+     * @return {boolean}
+     */
+    matchesPath(osPath)
+    {
+        if (!osPath)
+            return false;
+        return this.equalsPrefixRE.test(osPath) || this.startsWithPrefixRE.test(osPath);
+    }
+}
+
+/**
+ *
+ * @param {string} filePath
+ * @return {string}
+ */
+function fixSep(filePath)
+{
+    if (path.sep === PATH_SEP)
+        return filePath;
+    return filePath.replaceAll(path.sep, PATH_SEP);
+}
+
 class FileLocation
 {
 
@@ -106,35 +187,46 @@ class FileLocation
      * @param {string} name
      * @param {string} osDirPath
      * @param {boolean} modifiable
+     * @param {string} filesScheme
+     * @param {string} appScheme
+     * @param {string} appHostname
      */
-    constructor(name, osDirPath, modifiable)
+    constructor(name, osDirPath, modifiable, filesScheme, appScheme, appHostname)
     {
+        osDirPath = fixSep(osDirPath);
+
         this.name = name;
         this.modifiable = modifiable;
+        this.scheme = filesScheme;
+        /**
+         *
+         * @type {Record<string,FileUrlDef>}
+         */
+        this.urlDefs = {};
 
-        this.cdvUrlBase = CDV_PREFIX + name
-        this.cdvUrlPrefix = this.cdvUrlBase + PATH_SEP
-        this.equalsCDVUrlPrefixRE = new RegExp("^" + reEscape(this.cdvUrlBase) + reEscape(PATH_SEP) + '?$', "i"); // match ignoring case
-        this.startsWithCDVUrlPrefixRE = new RegExp("^" + reEscape(this.cdvUrlPrefix), "i"); // match ignoring case
+        // ignore appHostname
+        this.urlDefs[FILE_SCHEME] = new FileUrlDef(url.pathToFileURL(osDirPath).toString())
 
-        this.efsUrlBase = EFS_PREFIX + name
-        this.efsUrlPrefix = this.efsUrlBase + PATH_SEP
-        this.equalsEFSUrlPrefixRE = new RegExp("^" + reEscape(this.efsUrlBase) + reEscape(PATH_SEP) + '?$', "i"); // match ignoring case
-        this.startsWithEFSUrlPrefixRE = new RegExp("^" + reEscape(this.efsUrlPrefix), "i"); // match ignoring case
+        this.urlDefs[CDV_SCHEME] = new FileUrlDef(CDV_PREFIX + name, true)
+        this.urlDefs[EFS_SCHEME] = new FileUrlDef(EFS_PREFIX + name)
 
-        this.osPathBase = osDirPath.endsWith(path.sep) ? osDirPath.substring(0, osDirPath.length - 1) : osDirPath;
-        this.osPathPrefix = this.osPathBase + path.sep
-        this.equalsOSPathPrefixRE = new RegExp("^" + reEscape(this.osPathBase) + reEscape(path.sep) + '?$', "i"); // match ignoring case
-        this.startsWithOSPathPrefixRE = new RegExp("^" + reEscape(this.osPathPrefix), "i"); // match ignoring case
+        if (appScheme !== FILE_SCHEME)
+            this.urlDefs[appScheme] = new FileUrlDef(appScheme + "://" + appHostname + PATH_SEP + name)
+
+        this.urlDef = this.urlDefs[filesScheme];
+        if (!this.urlDef)
+            throw new Error("unknown scheme '" + filesScheme + "'");
+
+        this.osPathDef = new FileOSDef(osDirPath);
 
         fileLocations.push(this);
         fileLocationsByName[name] = this;
         allFileSystems[name] = {
             name: name,
-            root: createEntryInfo(false, "root:" + name, "/", this)
+            root: createEntryInfo(false, "root:" + name, PATH_SEP, this)
         };
-        allPaths[name + "Directory"] = this.osPathPrefix;
-        allUrls[name + "Directory"] = this.efsUrlPrefix;
+        allPaths[name + "Directory"] = this.osPathDef.prefix;
+        allUrls[name + "Directory"] = this.urlDefs[filesScheme].prefix;
     }
 
     /**
@@ -143,21 +235,37 @@ class FileLocation
     init()
     {
 
-        return fs.stat(this.osPathBase)
+        return fs.stat(this.osPathDef.base)
             .then((stats) =>
             {
                 if (!stats.isDirectory())
-                    return Promise.reject({message: this.osPathBase + ' exists but is not a directory', stats: stats});
+                    return Promise.reject({
+                        message: this.osPathDef.base + ' exists but is not a directory',
+                        stats: stats
+                    });
             }, (error) =>
             {
                 if (!isNotFoundError(error))
-                    return Promise.reject({message: 'cannot stat ' + this.osPathBase, cause: error});
-                return fs.mkdir(this.osPathBase, {recursive: true})
+                    return Promise.reject({message: 'cannot stat ' + this.osPathDef.base, cause: error});
+                return fs.mkdir(this.osPathDef.base, {recursive: true})
                     .catch((error) =>
                     {
-                        return Promise.reject({message: 'cannot create ' + this.osPathBase, cause: error});
+                        return Promise.reject({message: 'cannot create ' + this.osPathDef.base, cause: error});
                     })
             })
+    }
+
+    /**
+     *
+     * @param {string} scheme
+     * @return {FileUrlDef}
+     */
+    getUrlDef(scheme)
+    {
+        const d = this.urlDefs[scheme];
+        if (!d)
+            throw new Error("unknown scheme '" + scheme + "'");
+        return d;
     }
 
     /**
@@ -172,14 +280,15 @@ class FileLocation
             url = sanitizeUrl(url);
         if (!url)
             return null;
-        else if (this.equalsCDVUrlPrefixRE.test(url))
-            return new Entry(this, sanitizePath(url.replace(this.equalsCDVUrlPrefixRE, '')));
-        else if (this.startsWithCDVUrlPrefixRE.test(url))
-            return new Entry(this, sanitizePath(url.replace(this.startsWithCDVUrlPrefixRE, '')));
-        else if (this.equalsEFSUrlPrefixRE.test(url))
-            return new Entry(this, sanitizePath(url.replace(this.equalsEFSUrlPrefixRE, '')));
-        else if (this.startsWithEFSUrlPrefixRE.test(url))
-            return new Entry(this, sanitizePath(url.replace(this.startsWithEFSUrlPrefixRE, '')));
+
+        for (let scheme in this.urlDefs)
+        {
+            const def = this.urlDefs[scheme];
+            if (def.equalsPrefixRE.test(url))
+                return new Entry(this, sanitizePath(url.replace(def.equalsPrefixRE, '')));
+            else if (def.startsWithPrefixRE.test(url))
+                return new Entry(this, sanitizePath(url.replace(def.startsWithPrefixRE, '')));
+        }
         return null;
     }
 
@@ -192,10 +301,11 @@ class FileLocation
     {
         if (!osPath)
             return null;
-        else if (this.equalsOSPathPrefixRE.test(osPath))
-            return new Entry(this, sanitizePath(osPath.replace(this.equalsOSPathPrefixRE, '').replaceAll(path.sep, PATH_SEP)));
-        else if (this.startsWithOSPathPrefixRE.test(url))
-            return new Entry(this, sanitizePath(osPath.replace(this.startsWithOSPathPrefixRE, '').replaceAll(path.sep, PATH_SEP)));
+
+        if (this.osPathDef.equalsPrefixRE.test(osPath))
+            return new Entry(this, sanitizePath(osPath.replace(this.osPathDef.equalsPrefixRE, '')));
+        else if (this.osPathDef.startsWithPrefixRE.test(osPath))
+            return new Entry(this, sanitizePath(osPath.replace(this.osPathDef.startsWithPrefixRE, '')));
         return null;
     }
 
@@ -206,41 +316,19 @@ class FileLocation
      */
     matchesOSPath(osPath)
     {
-        return osPath &&
-            (this.equalsOSPathPrefixRE.test(osPath) || this.startsWithOSPathPrefixRE.test(osPath))
+        return this.osPathDef.matchesPath(osPath);
     }
 
     /**
      *
-     * @param {string} url
-     * @returns {boolean}
+     * @param {string} fullPath
+     * @return {string|undefined}
      */
-    matchesUrl(url)
-    {
-        return url && (this.matchesCDVUrl(url) || this.matchesEFSUrl(url))
+    buildNativeUrl(fullPath){
+        return this.urlDef.buildNativeURL(fullPath)
     }
 
-    /**
-     *
-     * @param {string} url
-     * @returns {boolean}
-     */
-    matchesEFSUrl(url)
-    {
-        return url &&
-            (this.equalsEFSUrlPrefixRE.test(url) || this.startsWithEFSUrlPrefixRE.test(url))
-    }
 
-    /**
-     *
-     * @param {string} url
-     * @returns {boolean}
-     */
-    matchesCDVUrl(url)
-    {
-        return url &&
-            (this.equalsCDVUrlPrefixRE.test(url) || this.startsWithCDVUrlPrefixRE.test(url))
-    }
 }
 
 class Entry
@@ -256,40 +344,33 @@ class Entry
         if (fullPath[0] !== PATH_SEP)
             fullPath = PATH_SEP + fullPath;
         this.fullPath = fullPath;
-
-        let osPath = fullPath;
-        if (path.sep !== PATH_SEP)
-            osPath = osPath.replaceAll(PATH_SEP, path.sep);
-        this.osPath = osPath;
-
-        this.name = path.basename(osPath);
-
+        this.name = path.basename(path.sep!==PATH_SEP ? fullPath.replaceAll(PATH_SEP, path.sep) : fullPath);
     }
 
+
+    /**
+     * @param {string} [scheme]
+     * @returns {string}
+     */
+    getUrl(scheme)
+    {
+        return this.root.getUrlDef(scheme || this.root.scheme).base + this.fullPath;
+    }
 
     /**
      * @returns {string}
      */
     getOSPath()
     {
-        return this.root.osPathBase + this.osPath;
+        return this.root.osPathDef.base + this.fullPath;
     }
-
-    /**
-     * @returns {string}
-     */
-    getEFSUrl()
-    {
-        return this.root.efsUrlBase + this.fullPath;
-    }
-
 
     /**
      * @returns {string}
      */
     getFileUrl()
     {
-        return pathToFileURL(this.getOSPath()).toString();
+        return url.pathToFileURL(this.getOSPath()).toString();
     }
 
     /**
@@ -352,7 +433,9 @@ function sanitizePath(path)
     if (!path || path === '')
         return '/';
 
-    const components = path.replaceAll(REPLACE_SLASHES_RE, '/').split(SLASH_SPLIT_RE);
+    path = fixSep(path);
+
+    const components = path.replaceAll(REPLACE_SLASHES_RE, PATH_SEP).split(SLASH_SPLIT_RE);
     // Remove double dots, use old school array iteration instead of RegExp
     // since it is impossible to debug them
     for (let index = 0; index < components.length; ++index)
@@ -370,7 +453,7 @@ function sanitizePath(path)
             }
         }
     }
-    return components.join('/');
+    return components.join(PATH_SEP);
 }
 
 
@@ -396,7 +479,7 @@ function sanitizeUrl(url)
  * @param {string} url
  * @returns {Entry| null}
  */
-function getEntry(url)
+function getEntryForUrl(url)
 {
     url = sanitizeUrl(url);
 
@@ -406,7 +489,7 @@ function getEntry(url)
     for (const fl of fileLocations)
     {
         const e = fl.getEntry(url, true);
-        if(e)
+        if (e)
             return e;
     }
     return null;
@@ -421,10 +504,12 @@ function getEntryForOSPath(osPath)
     if (!osPath || osPath.length === 0)
         return null;
 
+    osPath = fixSep(osPath);
+
     for (const fl of fileLocations)
     {
         if (fl.matchesOSPath(osPath))
-            return fl.getEntry(osPath);
+            return fl.getEntryForOSPath(osPath);
     }
     return null;
 }
@@ -506,7 +591,7 @@ function createEntryInfo(isFile, name, fullPath, fl)
         isDirectory: !isFile,
         name,
         fullPath: fullPath,
-        // nativeURL: fl.efsUrlBase + fullPath,
+        nativeURL: fl.buildNativeUrl(fullPath),
         filesystemName: fl.name
     };
 }
@@ -522,7 +607,7 @@ const filePlugin = {
      */
     readEntries: function ([uri])
     {
-        const entry = getEntry(uri);
+        const entry = getEntryForUrl(uri);
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
 
@@ -562,7 +647,7 @@ const filePlugin = {
      */
     getFileMetadata: function ([uri])
     {
-        const entry = getEntry(uri)
+        const entry = getEntryForUrl(uri)
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
 
@@ -577,7 +662,7 @@ const filePlugin = {
                 return {
                     name: info.name,
                     localURL: info.fullPath,
-                    // nativeURL: info.nativeURL,
+                    nativeURL: info.nativeURL,
                     type: mime.getType(entry.getOSPath()),
                     lastModified: stats.mtime,
                     size: stats.size,
@@ -597,7 +682,7 @@ const filePlugin = {
      */
     getMetadata: function ([uri])
     {
-        const entry = getEntry(uri);
+        const entry = getEntryForUrl(uri);
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
 
@@ -623,13 +708,13 @@ const filePlugin = {
      */
     setMetadata: function ([uri, metadataObject])
     {
-        const entry = getEntry(uri);
+        const entry = getEntryForUrl(uri);
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
         if (!entry.root.modifiable)
             return Promise.reject(FileError.INVALID_MODIFICATION_ERR)
 
-        return fs.utimes(entry.getOSPath(), modificationTime, modificationTime)
+        return fs.utimes(entry.getOSPath(), metadataObject.modificationTime, metadataObject.modificationTime)
             .catch((error) =>
             {
                 return notFoundOrError(error, 'cannot utimes ' + entry.getOSPath())
@@ -702,7 +787,7 @@ const filePlugin = {
      */
     remove: function ([uri])
     {
-        const entry = getEntry(uri);
+        const entry = getEntryForUrl(uri);
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
         if (!entry.root.modifiable)
@@ -735,7 +820,7 @@ const filePlugin = {
      */
     removeRecursively: function ([uri])
     {
-        const entry = getEntry(uri);
+        const entry = getEntryForUrl(uri);
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
         if (!entry.root.modifiable)
@@ -778,7 +863,7 @@ const filePlugin = {
      */
     getParent: function ([uri])
     {
-        const entry = getEntry(uri);
+        const entry = getEntryForUrl(uri);
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
         return entry.getParent().resolveInfo();
@@ -795,11 +880,11 @@ const filePlugin = {
      */
     copyTo: function ([srcUri, dstParentUri, dstName])
     {
-        const srcEntry = getEntry(srcUri);
+        const srcEntry = getEntryForUrl(srcUri);
         if (!srcEntry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
 
-        const dstParentEntry = getEntry(dstParentUri);
+        const dstParentEntry = getEntryForUrl(dstParentUri);
         if (!dstParentEntry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
 
@@ -841,13 +926,13 @@ const filePlugin = {
      */
     moveTo: function ([srcUri, dstParentUri, dstName])
     {
-        const srcEntry = getEntry(srcUri);
+        const srcEntry = getEntryForUrl(srcUri);
         if (!srcEntry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
         if (!srcEntry.root.modifiable)
             return Promise.reject(FileError.INVALID_MODIFICATION_ERR)
 
-        const dstParentEntry = getEntry(dstParentUri);
+        const dstParentEntry = getEntryForUrl(dstParentUri);
         if (!dstParentEntry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
 
@@ -891,7 +976,7 @@ const filePlugin = {
         if (!data)
             return Promise.reject(FileError.NOT_FOUND_ERR)
 
-        const entry = getEntry(uri);
+        const entry = getEntryForUrl(uri);
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
         if (!entry.root.modifiable)
@@ -930,7 +1015,7 @@ const filePlugin = {
      */
     truncate: function ([uri, size = 0])
     {
-        const entry = getEntry(uri);
+        const entry = getEntryForUrl(uri);
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
         if (!entry.root.modifiable)
@@ -954,7 +1039,7 @@ const filePlugin = {
      */
     resolveLocalFileSystemURI: function ([uri])
     {
-        const entry = getEntry(uri)
+        const entry = getEntryForUrl(uri)
         if (!entry)
             return Promise.reject(FileError.NOT_FOUND_ERR)
         return entry.resolveInfo();
@@ -1012,14 +1097,14 @@ const filePluginUtil = {
      */
     urlToFilePath: (url) =>
     {
-        const entry = getEntry(url);
+        const entry = getEntryForUrl(url);
         if (!entry)
             return null;
         return entry.getOSPath();
     },
 
     /**
-     * get absolute url (cdvfile://, efs://) for given file path
+     * get absolute url (app://, cdvfile://, efs://) for given file path
      * @param {string} path
      * @returns {string | null}
      */
@@ -1028,7 +1113,7 @@ const filePluginUtil = {
         const entry = getEntryForOSPath(path);
         if (!entry)
             return null;
-        return entry.getEFSUrl();
+        return entry.getUrl();
     },
 
     /**
@@ -1041,128 +1126,13 @@ const filePluginUtil = {
     }
 }
 
-/**
- * cordova electron plugin api
- * @param {string} action
- * @param {Array<any>} args
- * @param {CallbackContext} callbackContext
- * @returns {boolean} indicating if action is available in plugin
- */
-const plugin = function (action, args, callbackContext)
-{
-    if (!filePlugin[action])
-        return false;
-    try
-    {
-        Promise.resolve(filePlugin[action](args)).then(
-            callbackContext.success.bind(callbackContext),
-            callbackContext.error.bind(callbackContext)
-        );
-    } catch (e)
-    {
-        console.error(action + ' failed', e);
-        callbackContext.error({message: action + ' failed', cause: e});
-    }
-    return true;
-}
-
-let FILE_LOCATION_APPLICATION;
-let FILE_LOCATION_DATA;
-let FILE_LOCATION_TEMP;
-let FILE_LOCATION_CACHE;
-let FILE_LOCATION_DOCUMENTS;
-
-
-let _initialized = false;
-
-/**
- * @param {Record<string, string>} variables
- * @param {(serviceName:string)=>Promise<any>} serviceLoader
- * @returns {Promise<void>}
- */
-function init(variables, serviceLoader)
-{
-    if (_initialized)
-        return Promise.reject(new Error("cordova-plugin-file already initialized"));
-    _initialized = true;
-
-    const appPackageName = variables['PACKAGE_NAME']
-    if (!appPackageName || appPackageName.length < 1)
-        return Promise.reject(new Error("cordova-plugin-file cannot find PACKAGE_NAME"));
-
-    FILE_LOCATION_APPLICATION = new FileLocation("application", app.getAppPath(), false);
-    FILE_LOCATION_DATA = new FileLocation("data", path.join(app.getPath('userData'), appPackageName), true);
-    FILE_LOCATION_TEMP = new FileLocation("temp", path.join(app.getPath('temp'), appPackageName), true);
-//FILE_LOCATION_CACHE = new FileLocation("cache", path.join(app.getPath('cache'), appPackageName), true);
-    FILE_LOCATION_DOCUMENTS = new FileLocation("documents", app.getPath('documents'), true);
-
-    return app.whenReady().then(async () =>
-    {
-
-        await Promise.all(fileLocations.map((fl) =>
-        {
-            return fl.init()
-        }));
-
-        /**
-         *
-         * @param {GlobalRequest} req
-         * @return {Response|Promise<GlobalResponse>}
-         */
-        function handleRequest(req)
-        {
-            const entry = getEntry(req.url);
-            if (!entry)
-                return new Response(null, {status: 404});
-            const fileUrl = entry.getFileUrl();
-            if (!fileUrl)
-                return new Response(null, {status: 404});
-            return net.fetch(fileUrl);
-        }
-
-        if (!protocol.isProtocolHandled(CDV_SCHEME))
-            protocol.handle(CDV_SCHEME, handleRequest)
-        if (!protocol.isProtocolHandled(EFS_SCHEME))
-            protocol.handle(EFS_SCHEME, handleRequest)
-    })
-
-
-}
-
-/**
- * @param {Record<string, string>} variables
- * @returns {Promise<void>}
- */
-plugin.init = init;
-
-plugin.util = filePluginUtil;
-
-// backwards compatibility: attach api methods for direct access from old cordova-electron platform impl
-Object.keys(filePlugin).forEach((apiMethod) =>
-{
-    plugin[apiMethod] = async () =>
-    {
-        if (!_initialized)
-        {
-            // HACK to get VARIABLES for plugin. TODO: verify if this works in released/packaged app
-            const pluginId = require('../../package.json').cordova.id
-            const pluginVariables = require(path.join(app.getAppPath(), '..', 'electron.json'))['installed_plugins'][pluginId] || {};
-
-            await init(pluginVariables);
-        }
-        return filePlugin[apiMethod].apply(arguments);
-    }
-});
-
-module.exports = plugin;
-
 /** * Helpers ***/
 
 /**
  * Read the file contents as specified.
  * @template R
  *
- * @param  {string} outputFormat: what to read the file as. accepts 'text', 'dataURL', 'arrayBuffer' and 'binaryString'
+ * @param  {'text'|'dataURL'|'arrayBuffer'|'binaryString'} outputFormat: what to read the file as
  * @param  {string} uri: The fullPath of the file to be read.
  * @param  {string | null} encoding: The encoding to use to read the file.
  * @param  {number} startPos: The start position from which to begin reading the file.
@@ -1172,7 +1142,7 @@ module.exports = plugin;
  */
 function readAs(outputFormat, uri, encoding, startPos, endPos)
 {
-    const entry = getEntry(uri);
+    const entry = getEntryForUrl(uri);
     if (!entry)
         return Promise.reject(FileError.NOT_FOUND_ERR)
 
@@ -1224,7 +1194,7 @@ function readAs(outputFormat, uri, encoding, startPos, endPos)
  */
 function getFile(parentUri, fileName, options)
 {
-    const parentEntry = getEntry(parentUri);
+    const parentEntry = getEntryForUrl(parentUri);
     if (!parentEntry)
         return Promise.reject(FileError.NOT_FOUND_ERR)
     const entry = parentEntry.getChild(fileName);
@@ -1321,7 +1291,7 @@ function getFile(parentUri, fileName, options)
  */
 function getDirectory(parentUri, dirName, options)
 {
-    const parentEntry = getEntry(parentUri);
+    const parentEntry = getEntryForUrl(parentUri);
     if (!parentEntry)
         return Promise.reject(FileError.NOT_FOUND_ERR)
     const entry = parentEntry.getChild(dirName);
@@ -1390,3 +1360,229 @@ function getDirectory(parentUri, dirName, options)
         });
     });
 }
+
+
+/** * Plugin ***/
+
+// use scheme and hostname from app
+// - avoid CORS / CSP issues (this possibly has unwanted impacts on security)
+// - address an issue in electron
+//const DEFAULT_FILES_SCHEME = null;
+
+// use cdv scheme
+// - should be standard in cordova apps
+// - CSP may be used to avoid loading cdvfile urls to main window
+//const DEFAULT_FILES_SCHEME = CDV_SCHEME;
+
+// use efs scheme
+// - saves memory by shorter urls
+// - CSP may be used to avoid loading efs urls to main window
+//const DEFAULT_FILES_SCHEME = EFS_SCHEME;
+
+const DEFAULT_FILES_SCHEME = EFS_SCHEME;
+
+const WELL_KNOWN_SCHEMES = [FILE_SCHEME, CDV_SCHEME, EFS_SCHEME];
+
+/**
+ * @param {CordovaElectronPluginContext} ctx
+ * @returns {{filesScheme:string, appScheme:string}}
+ */
+function getSchemeConfig(ctx)
+{
+    const appScheme = ctx.getScheme();
+    if (appScheme === CDV_SCHEME || appScheme === EFS_SCHEME)
+        throw new Error("illegal app scheme '" + appScheme + "'");
+    const filesScheme = ctx.getVariable('ELECTRON_FILES_SCHEME') || DEFAULT_FILES_SCHEME || appScheme;
+
+    if (filesScheme !== appScheme && WELL_KNOWN_SCHEMES.indexOf(filesScheme) < 0)
+        throw new Error("illegal files scheme. Must beo one of: " + appScheme + ", " + WELL_KNOWN_SCHEMES.join(", "));
+
+    return {
+        filesScheme,
+        appScheme
+    }
+}
+
+
+let FILE_LOCATION_APPLICATION;
+let FILE_LOCATION_DATA;
+let FILE_LOCATION_TEMP;
+let FILE_LOCATION_CACHE;
+let FILE_LOCATION_DOCUMENTS;
+
+
+let _initialized = false;
+
+/**
+ * @type {CordovaElectronPlugin}
+ */
+const plugin = function (action, args, callbackContext)
+{
+    if (!filePlugin[action])
+        return false;
+    try
+    {
+        Promise.resolve(filePlugin[action](args)).then(
+            callbackContext.success.bind(callbackContext),
+            callbackContext.error.bind(callbackContext)
+        );
+    } catch (e)
+    {
+        console.error(action + ' failed', e);
+        callbackContext.error({message: action + ' failed', cause: e});
+    }
+    return true;
+}
+
+plugin.configure = (ctx) =>
+{
+    const {appScheme, filesScheme} = getSchemeConfig(ctx);
+    if (appScheme === filesScheme)
+        // scheme already registered in cdv-electron-main.js, cdvfile and efs not required
+        return;
+
+    if (filesScheme === FILE_SCHEME)
+        return;// scheme already registered as privileged, cdvfile and efs not required
+
+    // scheme is cdvfile or efs now
+
+    // supportFetchAPI=true: Allow urls with this scheme to be loaded via fetch
+    // bypassCSP=false: access to this scheme must be explicitly allowed in the CSP of www/index.html
+    ctx.registerSchemeAsPrivileged({
+        scheme: filesScheme,
+        privileges: {supportFetchAPI: true, corsEnabled: false, bypassCSP: false, secure: true}
+    })
+}
+
+plugin.initialize = (ctx) =>
+{
+    if (_initialized)
+        return Promise.reject(new Error("cordova-plugin-file already initialized"));
+    _initialized = true;
+
+    const appPackageName = ctx.getPackageName();
+    if (!appPackageName || appPackageName.length < 1)
+        return Promise.reject(new Error("cordova-plugin-file cannot find PACKAGE_NAME"));
+
+    const {appScheme, filesScheme} = getSchemeConfig(ctx);
+    const appHostname = ctx.getHostname();
+
+
+    // always use appScheme here
+    FILE_LOCATION_APPLICATION = new FileLocation("application", app.getAppPath(), false, appScheme, appScheme, appHostname);
+
+    FILE_LOCATION_DATA = new FileLocation("data", path.join(app.getPath('userData'), appPackageName), true, filesScheme, appScheme, appHostname);
+    FILE_LOCATION_TEMP = new FileLocation("temp", path.join(app.getPath('temp'), appPackageName), true, filesScheme, appScheme, appHostname);
+//FILE_LOCATION_CACHE = new FileLocation("cache", path.join(app.getPath('cache'), appPackageName), true, scheme, appScheme, appHostname);
+    FILE_LOCATION_DOCUMENTS = new FileLocation("documents", app.getPath('documents'), true, filesScheme, appScheme, appHostname);
+
+    return app.whenReady().then(async () =>
+    {
+        await Promise.all(fileLocations.map((fl) =>
+        {
+            return fl.init()
+        }));
+
+        const protocol = ctx.getMainWindow().webContents.session.protocol;
+
+        if (protocol.isProtocolIntercepted(FILE_SCHEME))
+        {
+            console.log("replacing custom protocol interceptor for scheme '" + FILE_SCHEME + "'");
+            protocol.uninterceptProtocol('file');
+        }
+
+        // restrict file scheme handler to all known paths
+        protocol.interceptFileProtocol(FILE_SCHEME, (request, cb) =>
+        {
+            const osPath = path.normalize(url.fileURLToPath(request.url));
+            const entry = getEntryForOSPath(osPath);
+            if (!entry)
+                cb({statusCode: 404}); // leaving the sandbox is forbidden
+            else
+                cb(osPath)
+            return true;
+        });
+
+
+        if (filesScheme === FILE_SCHEME)
+            return; // file scheme handler already set up
+
+        if (appScheme === filesScheme)
+        {
+            // overriding handler defined in cdv-electron-main.js
+            console.log("replacing default protocol handler for scheme '" + filesScheme + "'");
+        }
+
+        if (protocol.isProtocolHandled(filesScheme))
+        {
+            if (appScheme !== filesScheme)
+                console.log("replacing custom protocol handler for scheme '" + filesScheme + "'");
+
+            protocol.unhandle(filesScheme);
+        }
+
+        protocol.handle(filesScheme, (req) =>
+        {
+            const entry = getEntryForUrl(req.url);
+            if (!entry)
+                return new Response(null, {status: 404});
+            // this requires the file protocol to be available.
+            return net.fetch(entry.getFileUrl());
+        })
+
+    })
+
+
+}
+
+plugin.util = filePluginUtil;
+
+// backwards compatibility: attach api methods for direct access from old cordova-electron platform impl
+Object.keys(filePlugin).forEach((apiMethod) =>
+{
+    plugin[apiMethod] = async () =>
+    {
+        if (!_initialized)
+        {
+            // HACK to get VARIABLES for plugin. TODO: verify if this works in released/packaged app
+            const pluginId = require('../../package.json').cordova.id
+            const pluginVariables = require(path.join(app.getAppPath(), '..', 'electron.json'))['installed_plugins'][pluginId] || {};
+
+            await plugin.initialize({
+                getVariable(key)
+                {
+                    return pluginVariables[key]
+                },
+                getHostname()
+                {
+                    return 'localhost'
+                },
+                getScheme()
+                {
+                    return FILE_SCHEME
+                },
+                getPackageName()
+                {
+                    return pluginVariables['PACKAGE_NAME']
+                },
+                getService(serviceName)
+                {
+                    return Promise.reject('cannot resolve service ' + serviceName);
+                },
+                getMainWindow()
+                {
+                    return {
+                        webContents: {
+                            session: {
+                                protocol: require('electron').protocol
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        return filePlugin[apiMethod].apply(arguments);
+    }
+});
+
+module.exports = plugin;

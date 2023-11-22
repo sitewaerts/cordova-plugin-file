@@ -357,6 +357,12 @@ unable to access their previously-stored files.
 If your application is new, or has never previously stored files in the
 persistent filesystem, then the `Library` setting is generally recommended.
 
+
+## Electron Quirks
+
+Files served from any other location than `cordova.file.applicationDirectory` are accessible with urls starting with  `efs:///`
+
+
 ## Browser Quirks
 
 ### Common quirks and remarks

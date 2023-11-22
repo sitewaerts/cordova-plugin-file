@@ -21,7 +21,7 @@ interface Window {
         errorCallback?: (fileError: FileError) => void): void;
     /**
      * Look up file system Entry referred to by local URL.
-     * @param string url       URL referring to a local file or directory
+     * @param url       URL referring to a local file or directory
      * @param successCallback  invoked with Entry object corresponding to URL
      * @param errorCallback    invoked if error occurs retrieving file system entry
      */
@@ -30,7 +30,7 @@ interface Window {
         errorCallback?: (error: FileError) => void): void;
     /**
      * Look up file system Entry referred to by local URI.
-     * @param string uri       URI referring to a local file or directory
+     * @param uri       URI referring to a local file or directory
      * @param successCallback  invoked with Entry object corresponding to URI
      * @param errorCallback    invoked if error occurs retrieving file system entry
      */
@@ -44,9 +44,9 @@ interface Window {
 /** This interface represents a file system. */
 interface FileSystem {
     /* The name of the file system, unique across the list of exposed file systems. */
-    name: string;
+    readonly name: string;
     /** The root directory of the file system. */
-    root: DirectoryEntry;
+    readonly root: DirectoryEntry;
 }
 
 /**
