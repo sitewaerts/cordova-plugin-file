@@ -26,6 +26,7 @@ const {app, net} = require('electron');
 const url = require('url')
 const reEscape = require('regexp.escape');
 const mime = require('mime');
+const electron = require("electron");
 
 
 /**
@@ -1364,19 +1365,13 @@ function getDirectory(parentUri, dirName, options)
 
 /** * Plugin ***/
 
-// use scheme and hostname from app
-// - avoid CORS / CSP issues (this possibly has unwanted impacts on security)
-// - address an issue in electron
+// use scheme and hostname from app: CSP in index.html cannot deny loading of file-plugin sources
 //const DEFAULT_FILES_SCHEME = null;
 
-// use cdv scheme
-// - should be standard in cordova apps
-// - CSP may be used to avoid loading cdvfile urls to main window
+// use cdv scheme: requires more memory than efs as the urls are longer
 //const DEFAULT_FILES_SCHEME = CDV_SCHEME;
 
-// use efs scheme
-// - saves memory by shorter urls
-// - CSP may be used to avoid loading efs urls to main window
+// use efs scheme: requires less memory than cdvfile
 //const DEFAULT_FILES_SCHEME = EFS_SCHEME;
 
 const DEFAULT_FILES_SCHEME = EFS_SCHEME;
@@ -1392,10 +1387,14 @@ function getSchemeConfig(ctx)
     const appScheme = ctx.getScheme();
     if (appScheme === CDV_SCHEME || appScheme === EFS_SCHEME)
         throw new Error("illegal app scheme '" + appScheme + "'");
-    const filesScheme = ctx.getVariable('ELECTRON_FILES_SCHEME') || DEFAULT_FILES_SCHEME || appScheme;
+
+    let ELECTRON_FILE_SCHEME = ctx.getVariable('ELECTRON_FILES_SCHEME');
+    if(ELECTRON_FILE_SCHEME === 'APP_SCHEME')
+        ELECTRON_FILE_SCHEME = appScheme;
+    const filesScheme = ELECTRON_FILE_SCHEME || DEFAULT_FILES_SCHEME || appScheme;
 
     if (filesScheme !== appScheme && WELL_KNOWN_SCHEMES.indexOf(filesScheme) < 0)
-        throw new Error("illegal files scheme. Must beo one of: " + appScheme + ", " + WELL_KNOWN_SCHEMES.join(", "));
+        throw new Error("illegal files scheme '" + filesScheme + "'. Must be one of: " + appScheme + ", " + WELL_KNOWN_SCHEMES.join(", "));
 
     return {
         filesScheme,
