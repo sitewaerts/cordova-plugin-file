@@ -1447,9 +1447,10 @@ plugin.configure = (ctx) =>
 
     // supportFetchAPI=true: Allow urls with this scheme to be loaded via fetch
     // bypassCSP=false: access to this scheme must be explicitly allowed in the CSP of www/index.html
+    // stream=true: support for media playback
     ctx.registerSchemeAsPrivileged({
         scheme: filesScheme,
-        privileges: {supportFetchAPI: true, corsEnabled: false, bypassCSP: false, secure: true}
+        privileges: {supportFetchAPI: true, corsEnabled: false, bypassCSP: false, secure: true, stream:true}
     })
 }
 
