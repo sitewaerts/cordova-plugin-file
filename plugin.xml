@@ -261,6 +261,23 @@ to config.xml in order for the application to find previously stored files.
 
     <!-- electron -->
     <platform name="electron">
+
+        <!--
+
+        // use scheme and hostname from app: CSP in index.html cannot deny loading of file-plugin sources
+        // ELECTRON_FILES_SCHEME = null | '' | '_use_app_scheme'
+
+        // use custom scheme: requires less memory than cdvfile and app-scheme as the urls are shorter (no hostname in urls)
+        // custom scheme must be all lowercase, only ASCII characters, numbers, underscore
+        // ELECTRON_FILES_SCHEME = 'efs' | 'my_cool_scheme_01';
+
+        // use cdv scheme with hostname 'localhost': requires more memory than custom scheme as the urls are longer
+        // ELECTRON_FILES_SCHEME = 'cdvfile';
+
+        -->
+        <preference name="ELECTRON_FILES_SCHEME" default="efs" />
+
+
         <framework src="src/electron" />
 
         <js-module src="www/electron/FileSystem.js" name="electronFileSystem">

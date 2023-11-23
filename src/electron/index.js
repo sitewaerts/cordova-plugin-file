@@ -26,7 +26,6 @@ const {app, net} = require('electron');
 const url = require('url')
 const reEscape = require('regexp.escape');
 const mime = require('mime');
-const electron = require("electron");
 
 
 /**
@@ -66,10 +65,6 @@ const electron = require("electron");
 const PATH_SEP = '/';
 
 const FILE_SCHEME = "file"
-
-const EFS_SCHEME = "efs"
-const EFS_BASE = EFS_SCHEME + "://" // no host name
-const EFS_PREFIX = EFS_BASE + PATH_SEP
 
 const CDV_SCHEME = "cdvfile"
 const CDV_HOST = "localhost"
@@ -122,21 +117,12 @@ class FileUrlDef
     }
 
     /**
-     * @param {string} url
-     * @return {boolean}
-     */
-    matchesUrl(url)
-    {
-        return url &&
-            (this.equalsPrefixRE.test(url) || this.startsWithPrefixRE.test(url))
-    }
-
-    /**
      *
      * @param {string} fullPath
      * @returns {string | undefined}
      */
-    buildNativeURL(fullPath){
+    buildNativeURL(fullPath)
+    {
         return this.skipNativeUrl ? undefined : this.base + fullPath;
     }
 
@@ -208,11 +194,14 @@ class FileLocation
         // ignore appHostname
         this.urlDefs[FILE_SCHEME] = new FileUrlDef(url.pathToFileURL(osDirPath).toString())
 
+        // hostname always localhost
         this.urlDefs[CDV_SCHEME] = new FileUrlDef(CDV_PREFIX + name, true)
-        this.urlDefs[EFS_SCHEME] = new FileUrlDef(EFS_PREFIX + name)
 
-        if (appScheme !== FILE_SCHEME)
+        if (appScheme !== FILE_SCHEME) // app scheme always uses appHostname
             this.urlDefs[appScheme] = new FileUrlDef(appScheme + "://" + appHostname + PATH_SEP + name)
+
+        if (filesScheme !== appScheme && filesScheme !== CDV_SCHEME) // custom files scheme never uses hostname
+            this.urlDefs[filesScheme] = new FileUrlDef(filesScheme + ":///" + name)
 
         this.urlDef = this.urlDefs[filesScheme];
         if (!this.urlDef)
@@ -235,7 +224,6 @@ class FileLocation
      */
     init()
     {
-
         return fs.stat(this.osPathDef.base)
             .then((stats) =>
             {
@@ -325,7 +313,8 @@ class FileLocation
      * @param {string} fullPath
      * @return {string|undefined}
      */
-    buildNativeUrl(fullPath){
+    buildNativeUrl(fullPath)
+    {
         return this.urlDef.buildNativeURL(fullPath)
     }
 
@@ -345,7 +334,7 @@ class Entry
         if (fullPath[0] !== PATH_SEP)
             fullPath = PATH_SEP + fullPath;
         this.fullPath = fullPath;
-        this.name = path.basename(path.sep!==PATH_SEP ? fullPath.replaceAll(PATH_SEP, path.sep) : fullPath);
+        this.name = path.basename(path.sep !== PATH_SEP ? fullPath.replaceAll(PATH_SEP, path.sep) : fullPath);
     }
 
 
@@ -827,7 +816,7 @@ const filePlugin = {
         if (!entry.root.modifiable)
             return Promise.reject(FileError.INVALID_MODIFICATION_ERR)
 
-        return fs.stat(entry.getOSPath()).then((stats) =>
+        return fs.stat(entry.getOSPath()).then(() =>
         {
             return fs.remove(entry.getOSPath())
                 .catch((error) =>
@@ -1081,6 +1070,7 @@ const filePlugin = {
 };
 
 // util api for use in dependent plugins
+// noinspection JSUnusedGlobalSymbols
 const filePluginUtil = {
 
     paths: () =>
@@ -1092,9 +1082,9 @@ const filePluginUtil = {
         return allUrls;
     },
     /**
-     * get absolute file path for given url (cdvfile://, efs://)
-     * @param {string} url
-     * @returns {string | null}
+     * get absolute file path for given url
+     * @param {string} url e.g. cdvfile://localhost/, app://host/, file:///, efs:///
+     * @returns {string | null} native OS path
      */
     urlToFilePath: (url) =>
     {
@@ -1105,9 +1095,9 @@ const filePluginUtil = {
     },
 
     /**
-     * get absolute url (app://, cdvfile://, efs://) for given file path
-     * @param {string} path
-     * @returns {string | null}
+     * get absolute url for given file path
+     * @param {string} path native OS path
+     * @returns {string | null} e.g. cdvfile://localhost/, app://host/, file:///, efs:///
      */
     filePathToUrl: (path) =>
     {
@@ -1365,18 +1355,7 @@ function getDirectory(parentUri, dirName, options)
 
 /** * Plugin ***/
 
-// use scheme and hostname from app: CSP in index.html cannot deny loading of file-plugin sources
-//const DEFAULT_FILES_SCHEME = null;
-
-// use cdv scheme: requires more memory than efs as the urls are longer
-//const DEFAULT_FILES_SCHEME = CDV_SCHEME;
-
-// use efs scheme: requires less memory than cdvfile
-//const DEFAULT_FILES_SCHEME = EFS_SCHEME;
-
-const DEFAULT_FILES_SCHEME = EFS_SCHEME;
-
-const WELL_KNOWN_SCHEMES = [FILE_SCHEME, CDV_SCHEME, EFS_SCHEME];
+const VARIABLE_ELECTRON_FILE_SCHEME = 'ELECTRON_FILE_SCHEME'
 
 /**
  * @param {CordovaElectronPluginContext} ctx
@@ -1385,16 +1364,15 @@ const WELL_KNOWN_SCHEMES = [FILE_SCHEME, CDV_SCHEME, EFS_SCHEME];
 function getSchemeConfig(ctx)
 {
     const appScheme = ctx.getScheme();
-    if (appScheme === CDV_SCHEME || appScheme === EFS_SCHEME)
+    if (appScheme === CDV_SCHEME)
         throw new Error("illegal app scheme '" + appScheme + "'");
 
-    let ELECTRON_FILE_SCHEME = ctx.getVariable('ELECTRON_FILES_SCHEME');
-    if(ELECTRON_FILE_SCHEME === 'APP_SCHEME')
+    let ELECTRON_FILE_SCHEME = ctx.getVariable(VARIABLE_ELECTRON_FILE_SCHEME);
+    if (!ELECTRON_FILE_SCHEME || ELECTRON_FILE_SCHEME === '' || ELECTRON_FILE_SCHEME === '_use_app_scheme')
         ELECTRON_FILE_SCHEME = appScheme;
-    const filesScheme = ELECTRON_FILE_SCHEME || DEFAULT_FILES_SCHEME || appScheme;
-
-    if (filesScheme !== appScheme && WELL_KNOWN_SCHEMES.indexOf(filesScheme) < 0)
-        throw new Error("illegal files scheme '" + filesScheme + "'. Must be one of: " + appScheme + ", " + WELL_KNOWN_SCHEMES.join(", "));
+    if(ELECTRON_FILE_SCHEME.toLowerCase() !== ELECTRON_FILE_SCHEME)
+        throw new Error("illegal files scheme '" + ELECTRON_FILE_SCHEME + "'. Must use lower case characters only!");
+    const filesScheme = ELECTRON_FILE_SCHEME;
 
     return {
         filesScheme,
@@ -1406,8 +1384,8 @@ function getSchemeConfig(ctx)
 let FILE_LOCATION_APPLICATION;
 let FILE_LOCATION_DATA;
 let FILE_LOCATION_TEMP;
-let FILE_LOCATION_CACHE;
 let FILE_LOCATION_DOCUMENTS;
+// let FILE_LOCATION_CACHE;
 
 
 let _initialized = false;
@@ -1437,20 +1415,21 @@ plugin.configure = (ctx) =>
 {
     const {appScheme, filesScheme} = getSchemeConfig(ctx);
     if (appScheme === filesScheme)
-        // scheme already registered in cdv-electron-main.js, cdvfile and efs not required
+        // scheme already registered as privilged in cdv-electron-main.js, cdvfile and efs not required
         return;
 
     if (filesScheme === FILE_SCHEME)
         return;// scheme already registered as privileged, cdvfile and efs not required
 
-    // scheme is cdvfile or efs now
+    // scheme is 'cdvfile' or any custom value now
 
     // supportFetchAPI=true: Allow urls with this scheme to be loaded via fetch
     // bypassCSP=false: access to this scheme must be explicitly allowed in the CSP of www/index.html
+    // secure=true: no mixed content warnings
     // stream=true: support for media playback
     ctx.registerSchemeAsPrivileged({
         scheme: filesScheme,
-        privileges: {supportFetchAPI: true, corsEnabled: false, bypassCSP: false, secure: true, stream:true}
+        privileges: {supportFetchAPI: true, corsEnabled: false, bypassCSP: false, secure: true, stream: true}
     })
 }
 
@@ -1473,8 +1452,8 @@ plugin.initialize = (ctx) =>
 
     FILE_LOCATION_DATA = new FileLocation("data", path.join(app.getPath('userData'), appPackageName), true, filesScheme, appScheme, appHostname);
     FILE_LOCATION_TEMP = new FileLocation("temp", path.join(app.getPath('temp'), appPackageName), true, filesScheme, appScheme, appHostname);
-//FILE_LOCATION_CACHE = new FileLocation("cache", path.join(app.getPath('cache'), appPackageName), true, scheme, appScheme, appHostname);
     FILE_LOCATION_DOCUMENTS = new FileLocation("documents", app.getPath('documents'), true, filesScheme, appScheme, appHostname);
+    //FILE_LOCATION_CACHE = new FileLocation("cache", path.join(app.getPath('cache'), appPackageName), true, scheme, appScheme, appHostname);
 
     return app.whenReady().then(async () =>
     {
@@ -1485,6 +1464,7 @@ plugin.initialize = (ctx) =>
 
         const protocol = ctx.getMainWindow().webContents.session.protocol;
 
+        // TODO: how to handle this, when interceptFileProtocol API is removed?
         if (protocol.isProtocolIntercepted(FILE_SCHEME))
         {
             console.log("replacing custom protocol interceptor for scheme '" + FILE_SCHEME + "'");
@@ -1545,12 +1525,15 @@ Object.keys(filePlugin).forEach((apiMethod) =>
         if (!_initialized)
         {
             // HACK to get VARIABLES for plugin. TODO: verify if this works in released/packaged app
-            const pluginId = require('../../package.json').cordova.id
-            const pluginVariables = require(path.join(app.getAppPath(), '..', 'electron.json'))['installed_plugins'][pluginId] || {};
+            //const pluginId = require('../../package.json').cordova.id
+            const pluginId = "cordova-plugin-file";
+            const pluginVariables = require(path.join(app.getAppPath(), 'electron.json'))['installed_plugins'][pluginId] || {};
 
             await plugin.initialize({
                 getVariable(key)
                 {
+                    if(key === VARIABLE_ELECTRON_FILE_SCHEME)
+                        return FILE_SCHEME; // always assume 'file' scheme as this is the only one configured correctly in main
                     return pluginVariables[key]
                 },
                 getHostname()
@@ -1559,6 +1542,7 @@ Object.keys(filePlugin).forEach((apiMethod) =>
                 },
                 getScheme()
                 {
+                    // always assume 'file' scheme as we don't know anything about app scheme
                     return FILE_SCHEME
                 },
                 getPackageName()
