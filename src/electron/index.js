@@ -1450,7 +1450,7 @@ plugin.configure = (ctx) =>
 
     // scheme is 'cdvfile' or any custom value now
 
-    // supportFetchAPI=true: Allow urls with this scheme to be loaded via fetch
+    // supportFetchAPI=true: Allow urls with this scheme to be loaded via fetch / xhr
     // bypassCSP=false: access to this scheme must be explicitly allowed in the CSP of www/index.html
     // secure=true: no mixed content warnings
     // stream=true: support for media playback
