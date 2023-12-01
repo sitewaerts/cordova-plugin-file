@@ -217,6 +217,8 @@ class FileLocation
         };
         allPaths[name + "Directory"] = this.osPathDef.prefix;
         allUrls[name + "Directory"] = this.urlDefs[filesScheme].prefix;
+
+        console.log("cordova-plugin-file: file location '" + name + "':" + osDirPath + " --> " + this.urlDef.prefix);
     }
 
     /**
@@ -587,7 +589,7 @@ function createEntryInfo(isFile, name, fullPath, fl)
 }
 
 // public plugin api
-const filePlugin = {
+const pluginAPI = {
     /**
      * Read the file contents as text
      *
@@ -1071,7 +1073,7 @@ const filePlugin = {
 
 // util api for use in dependent plugins
 // noinspection JSUnusedGlobalSymbols
-const filePluginUtil = {
+const pluginUtil = {
 
     paths: () =>
     {
@@ -1113,7 +1115,7 @@ const filePluginUtil = {
      */
     resolveLocalFileSystemURI: (url) =>
     {
-        return filePlugin.resolveLocalFileSystemURI([url]);
+        return pluginAPI.resolveLocalFileSystemURI([url]);
     }
 }
 
@@ -1355,7 +1357,7 @@ function getDirectory(parentUri, dirName, options)
 
 /** * Plugin ***/
 
-const VARIABLE_ELECTRON_FILE_SCHEME = 'ELECTRON_FILE_SCHEME'
+const VARIABLE_ELECTRON_FILES_SCHEME = 'ELECTRON_FILES_SCHEME'
 
 /**
  * @param {CordovaElectronPluginContext} ctx
@@ -1367,12 +1369,12 @@ function getSchemeConfig(ctx)
     if (appScheme === CDV_SCHEME)
         throw new Error("illegal app scheme '" + appScheme + "'");
 
-    let ELECTRON_FILE_SCHEME = ctx.getVariable(VARIABLE_ELECTRON_FILE_SCHEME);
-    if (!ELECTRON_FILE_SCHEME || ELECTRON_FILE_SCHEME === '' || ELECTRON_FILE_SCHEME === '_use_app_scheme')
-        ELECTRON_FILE_SCHEME = appScheme;
-    if(ELECTRON_FILE_SCHEME.toLowerCase() !== ELECTRON_FILE_SCHEME)
-        throw new Error("illegal files scheme '" + ELECTRON_FILE_SCHEME + "'. Must use lower case characters only!");
-    const filesScheme = ELECTRON_FILE_SCHEME;
+    let ELECTRON_FILES_SCHEME = ctx.getVariable(VARIABLE_ELECTRON_FILES_SCHEME);
+    if (!ELECTRON_FILES_SCHEME || ELECTRON_FILES_SCHEME === '' || ELECTRON_FILES_SCHEME === '_use_app_scheme')
+        ELECTRON_FILES_SCHEME = appScheme;
+    if(ELECTRON_FILES_SCHEME.toLowerCase() !== ELECTRON_FILES_SCHEME)
+        throw new Error("illegal files scheme '" + ELECTRON_FILES_SCHEME + "'. Must use lower case characters only!");
+    const filesScheme = ELECTRON_FILES_SCHEME;
 
     return {
         filesScheme,
@@ -1395,17 +1397,17 @@ let _initialized = false;
  */
 const plugin = function (action, args, callbackContext)
 {
-    if (!filePlugin[action])
+    if (!pluginAPI[action])
         return false;
     try
     {
-        Promise.resolve(filePlugin[action](args)).then(
+        Promise.resolve(pluginAPI[action](args)).then(
             callbackContext.success.bind(callbackContext),
             callbackContext.error.bind(callbackContext)
         );
     } catch (e)
     {
-        console.error(action + ' failed', e);
+        console.error("cordova-plugin-file: "+ action + ' failed', e);
         callbackContext.error({message: action + ' failed', cause: e});
     }
     return true;
@@ -1413,9 +1415,34 @@ const plugin = function (action, args, callbackContext)
 
 plugin.configure = (ctx) =>
 {
+    const appPackageName = ctx.getPackageName();
+    if (!appPackageName || appPackageName.length < 1)
+        return Promise.reject(new Error("cordova-plugin-file cannot find PACKAGE_NAME"));
+
+
+    let isPackaged = false;
+
+    // TODO
+    if(process.platform.startsWith('win')){
+        isPackaged = process.argv0.endsWith(".exe");
+        if(isPackaged)
+        {
+            // use 'local' instead of 'roaming'
+            // see https://www.electronjs.org/docs/latest/api/app#appgetpathname
+            app.setPath('userData', path.join(process.env.LOCALAPPDATA, appPackageName))
+        }
+        else{
+            // in DEV mode this point to electron dir, which is not app specific
+            app.setPath('userData', path.join(app.getPath('userData'), appPackageName))
+        }
+    }
+
+    app.setPath('temp', path.join(app.getPath('temp'), appPackageName))
+    //app.setPath('cache', path.join(app.getPath('cache'), appPackageName))
+
     const {appScheme, filesScheme} = getSchemeConfig(ctx);
     if (appScheme === filesScheme)
-        // scheme already registered as privilged in cdv-electron-main.js, cdvfile and efs not required
+        // scheme already registered as privileged in cdv-electron-main.js, cdvfile and efs not required
         return;
 
     if (filesScheme === FILE_SCHEME)
@@ -1439,10 +1466,6 @@ plugin.initialize = (ctx) =>
         return Promise.reject(new Error("cordova-plugin-file already initialized"));
     _initialized = true;
 
-    const appPackageName = ctx.getPackageName();
-    if (!appPackageName || appPackageName.length < 1)
-        return Promise.reject(new Error("cordova-plugin-file cannot find PACKAGE_NAME"));
-
     const {appScheme, filesScheme} = getSchemeConfig(ctx);
     const appHostname = ctx.getHostname();
 
@@ -1450,10 +1473,13 @@ plugin.initialize = (ctx) =>
     // always use appScheme here
     FILE_LOCATION_APPLICATION = new FileLocation("application", app.getAppPath(), false, appScheme, appScheme, appHostname);
 
-    FILE_LOCATION_DATA = new FileLocation("data", path.join(app.getPath('userData'), appPackageName), true, filesScheme, appScheme, appHostname);
-    FILE_LOCATION_TEMP = new FileLocation("temp", path.join(app.getPath('temp'), appPackageName), true, filesScheme, appScheme, appHostname);
+
+    FILE_LOCATION_DATA = new FileLocation("data", path.join(app.getPath('userData')), true, filesScheme, appScheme, appHostname);
+
+    FILE_LOCATION_TEMP = new FileLocation("temp", path.join(app.getPath('temp')), true, filesScheme, appScheme, appHostname);
+
     FILE_LOCATION_DOCUMENTS = new FileLocation("documents", app.getPath('documents'), true, filesScheme, appScheme, appHostname);
-    //FILE_LOCATION_CACHE = new FileLocation("cache", path.join(app.getPath('cache'), appPackageName), true, scheme, appScheme, appHostname);
+    //FILE_LOCATION_CACHE = new FileLocation("cache", path.join(app.getPath('cache')), true, scheme, appScheme, appHostname);
 
     return app.whenReady().then(async () =>
     {
@@ -1467,7 +1493,7 @@ plugin.initialize = (ctx) =>
         // TODO: how to handle this, when interceptFileProtocol API is removed?
         if (protocol.isProtocolIntercepted(FILE_SCHEME))
         {
-            console.log("replacing custom protocol interceptor for scheme '" + FILE_SCHEME + "'");
+            console.log("cordova-plugin-file: replacing custom protocol interceptor for scheme '" + FILE_SCHEME + "'");
             protocol.uninterceptProtocol('file');
         }
 
@@ -1490,13 +1516,13 @@ plugin.initialize = (ctx) =>
         if (appScheme === filesScheme)
         {
             // overriding handler defined in cdv-electron-main.js
-            console.log("replacing default protocol handler for scheme '" + filesScheme + "'");
+            console.log("cordova-plugin-file: replacing default protocol handler for scheme '" + filesScheme + "'");
         }
 
         if (protocol.isProtocolHandled(filesScheme))
         {
             if (appScheme !== filesScheme)
-                console.log("replacing custom protocol handler for scheme '" + filesScheme + "'");
+                console.log("cordova-plugin-file: replacing custom protocol handler for scheme '" + filesScheme + "'");
 
             protocol.unhandle(filesScheme);
         }
@@ -1515,10 +1541,10 @@ plugin.initialize = (ctx) =>
 
 }
 
-plugin.util = filePluginUtil;
+plugin.util = pluginUtil;
 
 // backwards compatibility: attach api methods for direct access from old cordova-electron platform impl
-Object.keys(filePlugin).forEach((apiMethod) =>
+Object.keys(pluginAPI).forEach((apiMethod) =>
 {
     plugin[apiMethod] = async () =>
     {
@@ -1532,7 +1558,7 @@ Object.keys(filePlugin).forEach((apiMethod) =>
             await plugin.initialize({
                 getVariable(key)
                 {
-                    if(key === VARIABLE_ELECTRON_FILE_SCHEME)
+                    if(key === VARIABLE_ELECTRON_FILES_SCHEME)
                         return FILE_SCHEME; // always assume 'file' scheme as this is the only one configured correctly in main
                     return pluginVariables[key]
                 },
@@ -1551,7 +1577,7 @@ Object.keys(filePlugin).forEach((apiMethod) =>
                 },
                 getService(serviceName)
                 {
-                    return Promise.reject('cannot resolve service ' + serviceName);
+                    return Promise.reject('cordova-plugin-file: cannot resolve service ' + serviceName);
                 },
                 getMainWindow()
                 {
@@ -1565,7 +1591,7 @@ Object.keys(filePlugin).forEach((apiMethod) =>
                 }
             });
         }
-        return filePlugin[apiMethod].apply(arguments);
+        return pluginAPI[apiMethod].apply(arguments);
     }
 });
 
