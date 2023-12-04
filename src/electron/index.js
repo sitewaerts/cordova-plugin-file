@@ -22,7 +22,7 @@
 const {Buffer} = require('buffer');
 const path = require('path');
 const fs = require('fs-extra');
-const {app, net} = require('electron');
+const {app, net, session} = require('electron');
 const url = require('url')
 const reEscape = require('regexp.escape');
 const mime = require('mime');
@@ -1373,7 +1373,7 @@ function getSchemeConfig(ctx)
     let ELECTRON_FILES_SCHEME = ctx.getVariable(VARIABLE_ELECTRON_FILES_SCHEME);
     if (!ELECTRON_FILES_SCHEME || ELECTRON_FILES_SCHEME === '' || ELECTRON_FILES_SCHEME === '_use_app_scheme')
         ELECTRON_FILES_SCHEME = appScheme;
-    if(ELECTRON_FILES_SCHEME.toLowerCase() !== ELECTRON_FILES_SCHEME)
+    if (ELECTRON_FILES_SCHEME.toLowerCase() !== ELECTRON_FILES_SCHEME)
         throw new Error("illegal files scheme '" + ELECTRON_FILES_SCHEME + "'. Must use lower case characters only!");
     const filesScheme = ELECTRON_FILES_SCHEME;
 
@@ -1408,7 +1408,7 @@ const plugin = function (action, args, callbackContext)
         );
     } catch (e)
     {
-        console.error("cordova-plugin-file: "+ action + ' failed', e);
+        console.error("cordova-plugin-file: " + action + ' failed', e);
         callbackContext.error({message: action + ' failed', cause: e});
     }
     return true;
@@ -1424,15 +1424,17 @@ plugin.configure = (ctx) =>
     let isPackaged = false;
 
     // TODO
-    if(process.platform.startsWith('win')){
+    if (process.platform.startsWith('win'))
+    {
         isPackaged = process.argv0.endsWith(".exe");
-        if(isPackaged)
+        if (isPackaged)
         {
             // use 'local' instead of 'roaming'
             // see https://www.electronjs.org/docs/latest/api/app#appgetpathname
             app.setPath('userData', path.join(process.env.LOCALAPPDATA, appPackageName))
         }
-        else{
+        else
+        {
             // in DEV mode this point to electron dir, which is not app specific
             app.setPath('userData', path.join(app.getPath('userData'), appPackageName))
         }
@@ -1483,61 +1485,72 @@ plugin.initialize = (ctx) =>
     //FILE_LOCATION_CACHE = new FileLocation("cache", path.join(app.getPath('cache')), true, scheme, appScheme, appHostname);
 
     return app.whenReady().then(async () =>
-    {
-        await Promise.all(fileLocations.map((fl) =>
         {
-            return fl.init()
-        }));
+            await Promise.all(fileLocations.map((fl) =>
+            {
+                return fl.init()
+            }));
 
-        const protocol = ctx.getMainWindow().webContents.session.protocol;
+            function configure(protocol)
+            {
 
-        // TODO: how to handle this, when interceptFileProtocol API is removed?
-        if (protocol.isProtocolIntercepted(FILE_SCHEME))
-        {
-            console.log("cordova-plugin-file: replacing custom protocol interceptor for scheme '" + FILE_SCHEME + "'");
-            protocol.uninterceptProtocol('file');
+                // TODO: how to handle this, when interceptFileProtocol API is removed?
+                if (protocol.isProtocolIntercepted(FILE_SCHEME))
+                {
+                    console.log("cordova-plugin-file: replacing custom protocol interceptor for scheme '" + FILE_SCHEME + "'");
+                    protocol.uninterceptProtocol('file');
+                }
+
+                // restrict file scheme handler to all known paths
+                protocol.interceptFileProtocol(FILE_SCHEME, (request, cb) =>
+                {
+                    const osPath = path.normalize(url.fileURLToPath(request.url));
+                    const entry = getEntryForOSPath(osPath);
+                    if (!entry)
+                        cb({statusCode: 404}); // leaving the sandbox is forbidden
+                    else
+                        cb(osPath)
+                    return true;
+                });
+
+
+                if (filesScheme === FILE_SCHEME)
+                    return; // file scheme handler already set up
+
+                if (appScheme === filesScheme)
+                {
+                    // overriding handler defined in cdv-electron-main.js
+                    console.log("cordova-plugin-file: replacing default protocol handler for scheme '" + filesScheme + "'");
+                }
+
+                if (protocol.isProtocolHandled(filesScheme))
+                {
+                    if (appScheme !== filesScheme)
+                        console.log("cordova-plugin-file: replacing custom protocol handler for scheme '" + filesScheme + "'");
+
+                    protocol.unhandle(filesScheme);
+                }
+
+                protocol.handle(filesScheme, (req) =>
+                {
+                    const entry = getEntryForUrl(req.url);
+                    if (!entry)
+                        return new Response(null, {status: 404});
+                    // this requires the file protocol to be available.
+                    return net.fetch(entry.getFileUrl());
+                })
+            }
+
+            configure(ctx.getMainWindow().webContents.session.protocol);
+            for (const partition of ctx.getAllSchemesPartitions())
+            {
+                const p = session.fromPartition(partition).protocol;
+                configure(p);
+            }
+
+
         }
-
-        // restrict file scheme handler to all known paths
-        protocol.interceptFileProtocol(FILE_SCHEME, (request, cb) =>
-        {
-            const osPath = path.normalize(url.fileURLToPath(request.url));
-            const entry = getEntryForOSPath(osPath);
-            if (!entry)
-                cb({statusCode: 404}); // leaving the sandbox is forbidden
-            else
-                cb(osPath)
-            return true;
-        });
-
-
-        if (filesScheme === FILE_SCHEME)
-            return; // file scheme handler already set up
-
-        if (appScheme === filesScheme)
-        {
-            // overriding handler defined in cdv-electron-main.js
-            console.log("cordova-plugin-file: replacing default protocol handler for scheme '" + filesScheme + "'");
-        }
-
-        if (protocol.isProtocolHandled(filesScheme))
-        {
-            if (appScheme !== filesScheme)
-                console.log("cordova-plugin-file: replacing custom protocol handler for scheme '" + filesScheme + "'");
-
-            protocol.unhandle(filesScheme);
-        }
-
-        protocol.handle(filesScheme, (req) =>
-        {
-            const entry = getEntryForUrl(req.url);
-            if (!entry)
-                return new Response(null, {status: 404});
-            // this requires the file protocol to be available.
-            return net.fetch(entry.getFileUrl());
-        })
-
-    })
+    )
 
 
 }
@@ -1559,7 +1572,7 @@ Object.keys(pluginAPI).forEach((apiMethod) =>
             await plugin.initialize({
                 getVariable(key)
                 {
-                    if(key === VARIABLE_ELECTRON_FILES_SCHEME)
+                    if (key === VARIABLE_ELECTRON_FILES_SCHEME)
                         return FILE_SCHEME; // always assume 'file' scheme as this is the only one configured correctly in main
                     return pluginVariables[key]
                 },
