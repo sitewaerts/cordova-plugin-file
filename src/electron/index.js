@@ -464,8 +464,8 @@ function sanitizeUrl(url)
     if (RE_ENCODED_URL.test(url))
         url = decodeURI(url);
 
-    // remove query
-    return url.split('?')[0];
+    // remove query and hash
+    return (url.split('?')[0]).split('#')[0];
 }
 
 /**
