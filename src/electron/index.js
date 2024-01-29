@@ -1387,6 +1387,7 @@ function getSchemeConfig(ctx)
 let FILE_LOCATION_APPLICATION;
 let FILE_LOCATION_DATA;
 let FILE_LOCATION_TEMP;
+let FILE_LOCATION_LOGS;
 let FILE_LOCATION_DOCUMENTS;
 // let FILE_LOCATION_CACHE;
 
@@ -1421,27 +1422,22 @@ plugin.configure = (ctx) =>
         return Promise.reject(new Error("cordova-plugin-file cannot find PACKAGE_NAME"));
 
 
-    let isPackaged = false;
-
     // TODO
     if (process.platform.startsWith('win'))
     {
-        isPackaged = process.argv0.endsWith(".exe");
-        if (isPackaged)
-        {
-            // use 'local' instead of 'roaming'
-            // see https://www.electronjs.org/docs/latest/api/app#appgetpathname
-            app.setPath('userData', path.join(process.env.LOCALAPPDATA, appPackageName))
-        }
-        else
-        {
-            // in DEV mode this point to electron dir, which is not app specific
-            app.setPath('userData', path.join(app.getPath('userData'), appPackageName))
-        }
+        // use 'local' instead of 'roaming'
+        // see https://www.electronjs.org/docs/latest/api/app#appgetpathname
+        app.setPath('userData', path.join(process.env['LOCALAPPDATA'], appPackageName));
+    }
+    else{
+        // TODO: Mac OS and Linux
+        console.warn("cordova-plugin-file: missing config impl for platform " + process.platform);
+        // app.setPath('userData', path.join(process.env['LOCALAPPDATA'], 'Packages', appPackageName));
     }
 
     app.setPath('temp', path.join(app.getPath('temp'), appPackageName))
-    //app.setPath('cache', path.join(app.getPath('cache'), appPackageName))
+    app.setPath('cache', path.join(app.getPath('userData'), 'cache'));
+    app.setAppLogsPath(path.join(app.getPath('userData'), 'logs'));
 
     const {appScheme, filesScheme} = getSchemeConfig(ctx);
     if (appScheme === filesScheme)
@@ -1480,6 +1476,7 @@ plugin.initialize = (ctx) =>
     FILE_LOCATION_DATA = new FileLocation("data", path.join(app.getPath('userData')), true, filesScheme, appScheme, appHostname);
 
     FILE_LOCATION_TEMP = new FileLocation("temp", path.join(app.getPath('temp')), true, filesScheme, appScheme, appHostname);
+    FILE_LOCATION_LOGS = new FileLocation("logs", path.join(app.getPath('logs')), true, filesScheme, appScheme, appHostname);
 
     FILE_LOCATION_DOCUMENTS = new FileLocation("documents", app.getPath('documents'), true, filesScheme, appScheme, appHostname);
     //FILE_LOCATION_CACHE = new FileLocation("cache", path.join(app.getPath('cache')), true, scheme, appScheme, appHostname);

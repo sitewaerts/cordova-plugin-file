@@ -236,13 +236,14 @@ If interfacing with the external file system is a requirement for your applicati
 ### Electron File System Layout
 
 Varies according to OS and installation method.
-| Device Path                                           | `cordova.file.*`            | r/w? | persistent? | OS clears | private |
-|:------------------------------------------------------|:----------------------------|:----:|:-----------:|:---------:|:-------:|
-| Windows:`~\AppData\Local\Programs\{appId}`<br />Linux: `@todo`<br /> Mac: `/Applications/{appName.app}/Contents/Resources`         | applicationDirectory        | r    |     N/A     |     N/A   |   Yes   |
-| Windows:`~\AppData\Roaming\{appId}` <br />Linux: `@todo`<br /> Mac: `~/Library/Application Support/{appId}`                           | dataDirectory               | r/w  |     Yes     |     No    |   Yes   |
-| Windows: `~\AppData\Roaming`  <br />Linux: `@todo`<br /> Mac: `~/Library/Caches`                          | cacheDirectory              | r/w  |     No      |     Yes\* |   Yes   |
-| Windows: `~\AppData\Local\Temp`  <br />Linux: `@todo`<br /> Mac: `varies`                          | tempDirectory               | r/w  |     No      |     Yes\* |   Yes   |
-| Windows: `~\Documents`  <br />Linux: `@todo`<br /> Mac: `~/Documents`                           | documentsDirectory         | -  |     -     |     -    |   -   |
+
+| Device Path                                                                                                                                                                       | `cordova.file.*`                                                                                                       | r/w? | persistent? | OS clears | private |
+|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------------------------|:----:|:-----------:|:---------:|:-------:|
+| Windows:`%LOCALAPPDATA%\Programs\{appId}` or `%LOCALAPPDATA%\Packages\{appId}_{win-package-id}`<br />Linux: `@todo`<br /> Mac: `/Applications/{appName.app}/Contents/Resources` | applicationDirectory        | r    |     N/A     |     N/A   |   Yes   |
+| Windows:`%LOCALAPPDATA%\{appId}` <br />Linux: `@todo`<br /> Mac: `~/Library/Application Support/{appId}`                                                                          | dataDirectory                                                                                                          | r/w  |     Yes     |     No    |   Yes   |
+| Windows: `%LOCALAPPDATA%\{appId}\cache`  <br />Linux: `@todo`<br /> Mac: `~/Library/Caches`                                                                                       | cacheDirectory                                                                                                         | r/w  |     No      |     Yes\* |   Yes   |
+| Windows: `%LOCALAPPDATA%\Temp\{appId}`  <br />Linux: `@todo`<br /> Mac: `varies`                                                                                                  | tempDirectory                                                                                                          | r/w  |     No      |     Yes\* |   Yes   |
+| Windows: `~\Documents`  <br />Linux: `@todo`<br /> Mac: `~/Documents`                                                                                                             | documentsDirectory                                                                                                     | -  |     -     |     -    |   -   |
 
 \* The OS may periodically clear this directory
 
