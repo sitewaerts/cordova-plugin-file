@@ -1441,7 +1441,7 @@ plugin.configure = (ctx) =>
         else {
             // use 'local' instead of 'roaming'
             // see https://www.electronjs.org/docs/latest/api/app#appgetpathname
-            appDataDir =  path.join(process.env['LOCALAPPDATA'], 'Packages\\' + appPackageName);
+            appDataDir =  path.join(process.env['LOCALAPPDATA'], appPackageName);
         }
 
         app.setPath('userData', path.join(appDataDir, 'LocalState'));
