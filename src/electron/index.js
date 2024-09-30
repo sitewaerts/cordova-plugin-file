@@ -105,10 +105,7 @@ class FileUrlDef
      */
     constructor(base, skipNativeUrl)
     {
-        if (base.endsWith(PATH_SEP))
-            base = base.substring(0, base.length);
-
-        this.base = base;
+        this.base = base.endsWith(PATH_SEP) ? base.substring(0, base.length - 1) : base;
         this.prefix = this.base + PATH_SEP
         this.equalsPrefixRE = new RegExp("^" + reEscape(this.base) + reEscape(PATH_SEP) + '?$', "i"); // match ignoring case
         this.startsWithPrefixRE = new RegExp("^" + reEscape(this.prefix), "i"); // match ignoring case
@@ -1422,22 +1419,46 @@ plugin.configure = (ctx) =>
         return Promise.reject(new Error("cordova-plugin-file cannot find PACKAGE_NAME"));
 
 
-    // TODO
     if (process.platform.startsWith('win'))
     {
-        // use 'local' instead of 'roaming'
-        // see https://www.electronjs.org/docs/latest/api/app#appgetpathname
-        app.setPath('userData', path.join(process.env['LOCALAPPDATA'], appPackageName));
+
+        let appDataDir;
+        if(process.windowsStore)
+        {
+            // app was installed from appx
+            // use %LOCALAPPDATA%\Packages\%PACKAGE_FAMILY_ID%
+            // this path is identically to the path formerly used in cordova-windows (UWP App)
+            const packageString = process.argv0.split('\\').filter((comp)=>{return comp.startsWith(appPackageName)})[0]
+            if(!packageString)
+                return Promise.reject(new Error("cordova-plugin-file cannot find PACKAGE_FAMILY_ID at path '" + process.argv0 + "'"));
+            const familyId = packageString.split('__')[1];
+            if(!familyId)
+                return Promise.reject(new Error("cordova-plugin-file cannot find PACKAGE_FAMILY_ID at path '" + process.argv0 + "'"));
+            const packageFamilyId = appPackageName + '_' + familyId;
+
+            appDataDir =  path.join(process.env['LOCALAPPDATA'], 'Packages\\' + packageFamilyId);
+        }
+        else {
+            // use 'local' instead of 'roaming'
+            // see https://www.electronjs.org/docs/latest/api/app#appgetpathname
+            appDataDir =  path.join(process.env['LOCALAPPDATA'], 'Packages\\' + appPackageName);
+        }
+
+        app.setPath('userData', path.join(appDataDir, 'LocalState'));
+        app.setPath('temp', path.join(appDataDir, 'TempState'));
+        app.setPath('cache', path.join(appDataDir, 'LocalCache'));
+        app.setAppLogsPath(app.getPath('temp'));
     }
     else{
         // TODO: Mac OS and Linux
         console.warn("cordova-plugin-file: missing config impl for platform " + process.platform);
         // app.setPath('userData', path.join(process.env['LOCALAPPDATA'], 'Packages', appPackageName));
+
+        app.setPath('temp', path.join(app.getPath('temp'), appPackageName))
+        app.setPath('cache', path.join(app.getPath('userData'), 'cache'));
+        app.setAppLogsPath(path.join(app.getPath('userData'), 'logs'));
     }
 
-    app.setPath('temp', path.join(app.getPath('temp'), appPackageName))
-    app.setPath('cache', path.join(app.getPath('userData'), 'cache'));
-    app.setAppLogsPath(path.join(app.getPath('userData'), 'logs'));
 
     const {appScheme, filesScheme} = getSchemeConfig(ctx);
     if (appScheme === filesScheme)
