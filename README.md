@@ -127,16 +127,16 @@ the `cordova.file.*` properties map to physical paths on a real device.
 
 | Device Path                                    | `cordova.file.*`            | `iosExtraFileSystems` | r/w? | persistent? | OS clears | sync | private |
 |:-----------------------------------------------|:----------------------------|:----------------------|:----:|:-----------:|:---------:|:----:|:-------:|
-| `/var/mobile/Applications/<UUID>/`             | applicationStorageDirectory | -                     | r    |     N/A     |     N/A   | N/A  |   Yes   |
-| &nbsp;&nbsp;&nbsp;`appname.app/`               | applicationDirectory        | bundle                | r    |     N/A     |     N/A   | N/A  |   Yes   |
-| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`www/`     | -                           | -                     | r    |     N/A     |     N/A   | N/A  |   Yes   |
-| &nbsp;&nbsp;&nbsp;`Documents/`                 | documentsDirectory          | documents             | r/w  |     Yes     |     No    | Yes  |   Yes   |
-| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`NoCloud/` | -                           | documents-nosync      | r/w  |     Yes     |     No    | No   |   Yes   |
-| &nbsp;&nbsp;&nbsp;`Library`                    | -                           | library               | r/w  |     Yes     |     No    | Yes? |   Yes   |
-| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`NoCloud/` | dataDirectory               | library-nosync        | r/w  |     Yes     |     No    | No   |   Yes   |
-| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`Cloud/`   | syncedDataDirectory         | -                     | r/w  |     Yes     |     No    | Yes  |   Yes   |
-| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`Caches/`  | cacheDirectory              | cache                 | r/w  |     Yes*    |  Yes\*\*\*| No   |   Yes   |
-| &nbsp;&nbsp;&nbsp;`tmp/`                       | tempDirectory               | -                     | r/w  |     No\*\*  |  Yes\*\*\*| No   |   Yes   |
+| `/var/mobile/Applications/<UUID>/`             | applicationStorageDirectory | -                     |  r   |     N/A     |    N/A    | N/A  |   Yes   |
+| &nbsp;&nbsp;&nbsp;`appname.app/`               | applicationDirectory        | bundle                |  r   |     N/A     |    N/A    | N/A  |   Yes   |
+| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`www/`     | -                           | -                     |  r   |     N/A     |    N/A    | N/A  |   Yes   |
+| &nbsp;&nbsp;&nbsp;`Documents/`                 | documentsDirectory          | documents             | r/w  |     Yes     |    No     | Yes  |   Yes   |
+| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`NoCloud/` | -                           | documents-nosync      | r/w  |     Yes     |    No     |  No  |   Yes   |
+| &nbsp;&nbsp;&nbsp;`Library`                    | -                           | library               | r/w  |     Yes     |    No     | Yes? |   Yes   |
+| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`NoCloud/` | dataDirectory               | library-nosync        | r/w  |     Yes     |    No     |  No  |   Yes   |
+| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`Cloud/`   | syncedDataDirectory         | -                     | r/w  |     Yes     |    No     | Yes  |   Yes   |
+| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`Caches/`  | cacheDirectory              | cache                 | r/w  |    Yes*     | Yes\*\*\* |  No  |   Yes   |
+| &nbsp;&nbsp;&nbsp;`tmp/`                       | tempDirectory               | -                     | r/w  |   No\*\*    | Yes\*\*\* |  No  |   Yes   |
 
 
   \* Files persist across app restarts and upgrades, but this directory can
@@ -154,17 +154,17 @@ the `cordova.file.*` properties map to physical paths on a real device.
 
 ### Android File System Layout
 
-| Device Path                                     | `cordova.file.*`            | `AndroidExtraFileSystems` | r/w? | persistent? | OS clears | private |
-|:------------------------------------------------|:----------------------------|:--------------------------|:----:|:-----------:|:---------:|:-------:|
-| `file:///android_asset/`                        | applicationDirectory        | assets                    | r    |     N/A     |     N/A   |   Yes   |
-| `/data/data/<app-id>/`                          | applicationStorageDirectory | -                         | r/w  |     N/A     |     N/A   |   Yes   |
-| &nbsp;&nbsp;&nbsp;`cache`                       | cacheDirectory              | cache                     | r/w  |     Yes     |     Yes\* |   Yes   |
-| &nbsp;&nbsp;&nbsp;`files`                       | dataDirectory               | files                     | r/w  |     Yes     |     No    |   Yes   |
-| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`Documents` |                             | documents                 | r/w  |     Yes     |     No    |   Yes   |
-| `<sdcard>/`                                     | externalRootDirectory       | sdcard                    | r/w\*\*\*  |     Yes     |     No    |   No    |
-| &nbsp;&nbsp;&nbsp;`Android/data/<app-id>/`      | externalApplicationStorageDirectory | -                 | r/w  |     Yes     |     No    |   No    |
-| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`cache`     | externalCacheDirectory       | cache-external            | r/w  |     Yes     |     No\*\*|   No    |
-| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`files`     | externalDataDirectory       | files-external            | r/w  |     Yes     |     No    |   No    |
+| Device Path                                     | `cordova.file.*`                    | `AndroidExtraFileSystems` |   r/w?    | persistent? | OS clears | private |
+|:------------------------------------------------|:------------------------------------|:--------------------------|:---------:|:-----------:|:---------:|:-------:|
+| `file:///android_asset/`                        | applicationDirectory                | assets                    |     r     |     N/A     |    N/A    |   Yes   |
+| `/data/data/<app-id>/`                          | applicationStorageDirectory         | -                         |    r/w    |     N/A     |    N/A    |   Yes   |
+| &nbsp;&nbsp;&nbsp;`cache`                       | cacheDirectory                      | cache                     |    r/w    |     Yes     |   Yes\*   |   Yes   |
+| &nbsp;&nbsp;&nbsp;`files`                       | dataDirectory                       | files                     |    r/w    |     Yes     |    No     |   Yes   |
+| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`Documents` |                                     | documents                 |    r/w    |     Yes     |    No     |   Yes   |
+| `<sdcard>/`                                     | externalRootDirectory               | sdcard                    | r/w\*\*\* |     Yes     |    No     |   No    |
+| &nbsp;&nbsp;&nbsp;`Android/data/<app-id>/`      | externalApplicationStorageDirectory | -                         |    r/w    |     Yes     |    No     |   No    |
+| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`cache`     | externalCacheDirectory              | cache-external            |    r/w    |     Yes     |  No\*\*   |   No    |
+| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`files`     | externalDataDirectory               | files-external            |    r/w    |     Yes     |    No     |   No    |
 
 \* The OS may periodically clear this directory, but do not rely on this behavior. Clear
    the contents of this directory as appropriate for your application. Should a user
@@ -201,16 +201,16 @@ If interfacing with the external file system is a requirement for your applicati
 
 ### OS X File System Layout
 
-| Device Path                                      | `cordova.file.*`            | `iosExtraFileSystems` | r/w? |  OS clears | private |
-|:-------------------------------------------------|:----------------------------|:----------------------|:----:|:---------:|:-------:|
-| `/Applications/<appname>.app/`                   | -                           | bundle                | r    |     N/A   |   Yes   |
-| &nbsp;&nbsp;&nbsp;&nbsp;`Content/Resources/`     | applicationDirectory        | -                     | r    |     N/A   |   Yes   |
-| `~/Library/Application Support/<bundle-id>/`     | applicationStorageDirectory | -                     | r/w  |     No    |   Yes   |
-| &nbsp;&nbsp;&nbsp;&nbsp;`files/`                 | dataDirectory               | -                     | r/w  |     No    |   Yes   |
-| `~/Documents/`                                   | documentsDirectory          | documents             | r/w  |     No    |    No   |
-| `~/Library/Caches/<bundle-id>/`                  | cacheDirectory              | cache                 | r/w  |     No    |   Yes   |
-| `/tmp/`                                          | tempDirectory               | -                     | r/w  |    Yes\*  |   Yes   |
-| `/`                                              | rootDirectory               | root                  | r/w  |    No\*\* |    No   |
+| Device Path                                  | `cordova.file.*`            | `iosExtraFileSystems` | r/w? | OS clears | private |
+|:---------------------------------------------|:----------------------------|:----------------------|:----:|:---------:|:-------:|
+| `/Applications/<appname>.app/`               | -                           | bundle                |  r   |    N/A    |   Yes   |
+| &nbsp;&nbsp;&nbsp;&nbsp;`Content/Resources/` | applicationDirectory        | -                     |  r   |    N/A    |   Yes   |
+| `~/Library/Application Support/<bundle-id>/` | applicationStorageDirectory | -                     | r/w  |    No     |   Yes   |
+| &nbsp;&nbsp;&nbsp;&nbsp;`files/`             | dataDirectory               | -                     | r/w  |    No     |   Yes   |
+| `~/Documents/`                               | documentsDirectory          | documents             | r/w  |    No     |   No    |
+| `~/Library/Caches/<bundle-id>/`              | cacheDirectory              | cache                 | r/w  |    No     |   Yes   |
+| `/tmp/`                                      | tempDirectory               | -                     | r/w  |   Yes\*   |   Yes   |
+| `/`                                          | rootDirectory               | root                  | r/w  |  No\*\*   |   No    |
 
 **Note**: This is the layout for non sandboxed applications. I you enable sandboxing, the `applicationStorageDirectory` will be below ` ~/Library/Containers/<bundle-id>/Data/Library/Application Support`.
 
@@ -237,13 +237,13 @@ If interfacing with the external file system is a requirement for your applicati
 
 Varies according to OS and installation method.
 
-| Device Path                                                                                                                                                                       | `cordova.file.*`                                                                                                       | r/w? | persistent? | OS clears | private |
-|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------------------------|:----:|:-----------:|:---------:|:-------:|
-| Windows:`%LOCALAPPDATA%\Programs\{appId}` or `%LOCALAPPDATA%\Packages\{appId}_{win-package-id}`<br />Linux: `@todo`<br /> Mac: `/Applications/{appName.app}/Contents/Resources` | applicationDirectory        | r    |     N/A     |     N/A   |   Yes   |
-| Windows:`%LOCALAPPDATA%\{appId}` <br />Linux: `@todo`<br /> Mac: `~/Library/Application Support/{appId}`                                                                          | dataDirectory                                                                                                          | r/w  |     Yes     |     No    |   Yes   |
-| Windows: `%LOCALAPPDATA%\{appId}\cache`  <br />Linux: `@todo`<br /> Mac: `~/Library/Caches`                                                                                       | cacheDirectory                                                                                                         | r/w  |     No      |     Yes\* |   Yes   |
-| Windows: `%LOCALAPPDATA%\Temp\{appId}`  <br />Linux: `@todo`<br /> Mac: `varies`                                                                                                  | tempDirectory                                                                                                          | r/w  |     No      |     Yes\* |   Yes   |
-| Windows: `~\Documents`  <br />Linux: `@todo`<br /> Mac: `~/Documents`                                                                                                             | documentsDirectory                                                                                                     | -  |     -     |     -    |   -   |
+| Device Path                                                                                                                                                                     | `cordova.file.*`     | r/w? | persistent? | OS clears | private |
+|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:---------------------|:----:|:-----------:|:---------:|:-------:|
+| Windows:`%LOCALAPPDATA%\Programs\{appId}` or `%LOCALAPPDATA%\Packages\{appId}_{win-package-id}`<br />Linux: `@todo`<br /> Mac: `/Applications/{appName.app}/Contents/Resources` | applicationDirectory |  r   |     N/A     |    N/A    |   Yes   |
+| Windows:`%LOCALAPPDATA%\{appId}` <br />Linux: `@todo`<br /> Mac: `~/Library/Application Support/{appId}`                                                                        | dataDirectory        | r/w  |     Yes     |    No     |   Yes   |
+| Windows: `%LOCALAPPDATA%\{appId}\cache`  <br />Linux: `@todo`<br /> Mac: `~/Library/Caches`                                                                                     | cacheDirectory       | r/w  |     No      |   Yes\*   |   Yes   |
+| Windows: `%LOCALAPPDATA%\Temp\{appId}`  <br />Linux: `@todo`<br /> Mac: `varies`                                                                                                | tempDirectory        | r/w  |     No      |   Yes\*   |   Yes   |
+| Windows: `~\Documents`  <br />Linux: `@todo`<br /> Mac: `~/Documents`                                                                                                           | documentsDirectory   |  -   |      -      |     -     |    -    |
 
 \* The OS may periodically clear this directory
 
