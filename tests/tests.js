@@ -419,12 +419,12 @@ exports.defineAutoTests = function () {
                     };
                     // create a new file entry
                     createFile(fileName, function (entry) {
-                        window.resolveLocalFileSystemURL(entry.toURL() + '?1234567890', win, failed.bind(null, done, 'window.resolveLocalFileSystemURL - Error resolving file URI: ' + entry.toURL()));
+                        window.resolveLocalFileSystemURL(entry.nativeURL + '?1234567890', win, failed.bind(null, done, 'window.resolveLocalFileSystemURL - Error resolving file URI: ' + entry.nativeURL));
                     }, failed.bind(null, done, 'createFile - Error creating file: ' + fileName));
                 });
 
                 it('file.spec.11 should error (NOT_FOUND_ERR) when resolving (non-existent) invalid file name', function (done) {
-                    const fileName = joinURL(root.toURL(), 'this.is.not.a.valid.file.txt');
+                    const fileName = joinURL(root.nativeURL, 'this.is.not.a.valid.file.txt');
                     const fail = function (error) {
                         expect(error).toBeDefined();
                         if (isChrome) {
@@ -497,7 +497,7 @@ exports.defineAutoTests = function () {
                     expect(entry.removeRecursively).toBeDefined();
                     done();
                 };
-                window.resolveLocalFileSystemURL(root.toURL(), win, failed.bind(null, done, 'window.resolveLocalFileSystemURL - Error resolving file URI: ' + root.toURL()));
+                window.resolveLocalFileSystemURL(root.nativeURL, win, failed.bind(null, done, 'window.resolveLocalFileSystemURL - Error resolving file URI: ' + root.nativeURL));
             });
         });
 
@@ -647,10 +647,6 @@ exports.defineAutoTests = function () {
                     (http://www.w3.org/TR/2011/WD-file-system-api-20110419/#naming-restrictions). */
                     pending();
                 }
-                if (isElectron) {
-                    /* the fs plugin will consider this a valid fileName and return a NOT FOUND ERROR */
-                    pending();
-                }
 
                 const fileName = 'de:invalid:path';
                 const fail = function (error) {
@@ -697,7 +693,7 @@ exports.defineAutoTests = function () {
                 function getDir (dirEntry) {
                     expect(dirEntry.filesystem).toBeDefined();
                     expect(dirEntry.filesystem).toBe(root.filesystem);
-                    const dirURI = dirEntry.toURL();
+                    const dirURI = dirEntry.nativeURL;
                     // now encode URI and try to resolve
                     window.resolveLocalFileSystemURL(dirURI, win, failed.bind(null, done, 'window.resolveLocalFileSystemURL - getDir function - Error resolving directory: ' + dirURI));
                 }
@@ -956,10 +952,6 @@ exports.defineAutoTests = function () {
             });
 
             it('file.spec.36 removeRecursively on root file system', function (done) {
-                if (cordova.platformId === 'electron') {
-                    pending('The "root.removeRecursively" method will not be tested in Electron as it would remove the entire source code and cause further tests to fail.');
-                    return;
-                }
                 const remove = function (error) {
                     expect(error).toBeDefined();
                     if (isChrome) {
@@ -1305,11 +1297,7 @@ exports.defineAutoTests = function () {
                     }, function (entryFile) {
                         const uri = entryFile.toURL();
                         expect(uri).toBeDefined();
-                        if (isElectron) {
-                            expect(uri).toContain('/num 1/num 2/');
-                        } else {
-                            expect(uri).toContain('/num%201/num%202/');
-                        }
+                        expect(uri).toContain('/num%201/num%202/');
                         expect(uri.indexOf(rootPath)).not.toBe(-1);
                         // cleanup
                         deleteEntry(dirName_1, done);
@@ -1414,7 +1402,7 @@ exports.defineAutoTests = function () {
                 // remove entry that doesn't exist
                 root.remove(succeed.bind(null, done, 'entry.remove - Unexpected success callback, it should not remove entry that it does not exists'), function (error) {
                     expect(error).toBeDefined();
-                    if (isChrome || isElectron) {
+                    if (isChrome) {
                         /* INVALID_MODIFICATION_ERR (code: 9) or ??? (code: 13) is thrown instead of
                         NO_MODIFICATION_ALLOWED_ERR(code: 6) on trying to call removeRecursively
                         on the root file system. */
@@ -1468,7 +1456,7 @@ exports.defineAutoTests = function () {
                         if (isChrome) {
                             // chrome returns unknown error with code 13
                         } else {
-                            expect(error).toBeFileError(isElectron ? FileError.ENCODING_ERR : FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
+                            expect(error).toBeFileError(FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
                         }
                         // cleanup
                         deleteEntry(file1, done);
@@ -1639,7 +1627,7 @@ exports.defineAutoTests = function () {
                         if (isChrome) {
                             // chrome returns unknown error with code 13
                         } else {
-                            expect(error).toBeFileError(isElectron ? FileError.ENCODING_ERR : FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
+                            expect(error).toBeFileError(FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
                         }
                         root.getDirectory(srcDir, {
                             create: false
@@ -1655,10 +1643,6 @@ exports.defineAutoTests = function () {
             });
 
             it('file.spec.63 copyTo: directory that does not exist', function (done) {
-                if (isElectron) {
-                    // Electron creates the folder if it doesn't exist
-                    pending();
-                }
                 const file1 = 'entry.copy.dnf.file1';
                 const dirName = 'dir-foo';
                 createFile(file1, function (fileEntry) {
@@ -1966,8 +1950,12 @@ exports.defineAutoTests = function () {
                                     directoryReader.readEntries(function successRead (entries) {
                                         expect(entries.length).toBe(2);
                                         if (!isChrome) {
-                                            expect(entries[0].name).toBe(srcDirNestedFirst);
-                                            expect(entries[1].name).toBe(srcDirNestedSecond);
+                                            // Directory read order is undefined on some platforms, therefore we cannot assume order
+                                            // So we will start with an expected list and iterate over the entries and test to see if they
+                                            // are in our expectation list. When found we will remove them. At the end, our expectation list
+                                            // should be empty.
+                                            const expected = [srcDirNestedFirst, srcDirNestedSecond];
+                                            expect(entries.map((entry) => entry.name)).toEqual(jasmine.arrayWithExactContents(expected));
                                         }
                                         deleteEntry(dstDir, done);
                                     }, failed.bind(null, done, 'Error getting entries from: ' + transferredDirectory));
@@ -2040,7 +2028,7 @@ exports.defineAutoTests = function () {
                         if (isChrome) {
                             // chrome returns unknown error with code 13
                         } else {
-                            expect(error).toBeFileError(isElectron ? FileError.ENCODING_ERR : FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
+                            expect(error).toBeFileError(FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
                         }
                         // make sure original directory still exists
                         root.getDirectory(srcDir, {
@@ -2176,7 +2164,7 @@ exports.defineAutoTests = function () {
                             if (isChrome) {
                                 // chrome returns unknown error with code 13
                             } else {
-                                expect(error).toBeFileError(isElectron ? FileError.ENCODING_ERR : FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
+                                expect(error).toBeFileError(FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
                             }
                             // test that original directory exists
                             root.getDirectory(srcDir, {
@@ -2224,7 +2212,7 @@ exports.defineAutoTests = function () {
                             if (isChrome) {
                                 // chrome returns unknown error with code 13
                             } else {
-                                expect(error).toBeFileError(isElectron ? FileError.ENCODING_ERR : FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
+                                expect(error).toBeFileError(FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
                             }
                             // check that original dir still exists
                             root.getDirectory(srcDir, {
@@ -2279,7 +2267,7 @@ exports.defineAutoTests = function () {
                                     if (isChrome) {
                                         // chrome returns unknown error with code 13
                                     } else {
-                                        expect(error).toBeFileError(isElectron ? FileError.ENCODING_ERR : FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
+                                        expect(error).toBeFileError(FileError.INVALID_MODIFICATION_ERR); // eslint-disable-line no-undef
                                     }
                                     // making sure destination directory still exists
                                     directory.getDirectory(subDir, {
@@ -2308,9 +2296,6 @@ exports.defineAutoTests = function () {
             });
 
             it('file.spec.77 moveTo: file replace existing file', function (done) {
-                if (isElectron) {
-                    pending('Electron throws an error because of file overwrites');
-                }
                 const file1 = 'entry.move.frf.file1';
                 const file2 = 'entry.move.frf.file2';
                 const file2Path = joinURL(root.fullPath, file2);
@@ -2359,9 +2344,7 @@ exports.defineAutoTests = function () {
                     /* `copyTo` and `moveTo` functions do not support directories (Firefox, IE) */
                     pending();
                 }
-                if (isElectron) {
-                    pending('Electron throws an error because of overwrites');
-                }
+
                 const file1 = 'file1';
                 const srcDir = 'entry.move.drd.srcDir';
                 const dstDir = 'entry.move.drd.dstDir';
@@ -2418,9 +2401,6 @@ exports.defineAutoTests = function () {
             it('file.spec.79 moveTo: directory that does not exist', function (done) {
                 if (isChrome) {
                     pending('chrome freak out about non-existend dir not being a DirectoryEntry');
-                }
-                if (isElectron) {
-                    pending('Electron creates the directory if it doesn\'t exist');
                 }
                 const file1 = 'entry.move.dnf.file1';
                 const dstDir = 'entry.move.dnf.dstDir';
@@ -2927,10 +2907,6 @@ exports.defineAutoTests = function () {
             });
 
             it('file.spec.98 should be able to seek to the middle of the file and write more data than file.length', function (done) {
-                if (isElectron) {
-                    pending('Electron implements fs-extra for node. This means writing from a particular seek point doesn\'t remove data from the back');
-                    return;
-                }
                 const fileName = 'writer.seek.write'; // file content
                 const content = 'This is our sentence.'; // for checking file length
                 const exception = 'newer sentence.';
@@ -2975,10 +2951,7 @@ exports.defineAutoTests = function () {
                        i.e. the length is not being changed from content.length and writer length will be equal 21 */
                     pending();
                 }
-                if (isElectron) {
-                    pending('Electron implements fs-extra for node. This means writing from a particular seek point doesn\'t remove data from the back');
-                    return;
-                }
+
                 const fileName = 'writer.seek.write2'; // file content
                 const content = 'This is our sentence.'; // for checking file length
                 const exception = 'new.';
@@ -3395,7 +3368,7 @@ exports.defineAutoTests = function () {
             /* These specs verify that paths with parent references i("..") in them
              * work correctly, and do not cause the application to crash.
              */
-            it('file.spec.110 should not throw exception resolving parent refefences', function (done) {
+            it('file.spec.110 should not throw exception resolving parent references', function (done) {
                 /* This is a direct copy of file.spec.9, with the filename changed, * as reported in CB-5721.
                  */
                 const fileName = 'resolve.file.uri';
@@ -3404,12 +3377,12 @@ exports.defineAutoTests = function () {
                 createDirectory(dirName, function () {
                     createFile(dirName + '/../' + fileName, function (entry) {
                         // lookup file system entry
-                        window.resolveLocalFileSystemURL(entry.toURL(), function (fileEntry) {
+                        window.resolveLocalFileSystemURL(entry.nativeURL, function (fileEntry) {
                             expect(fileEntry).toBeDefined();
                             expect(fileEntry.name).toCanonicallyMatch(fileName);
                             // cleanup
                             deleteEntry(fileName, done);
-                        }, failed.bind(null, done, 'window.resolveLocalFileSystemURL - Error resolving URI: ' + entry.toURL()));
+                        }, failed.bind(null, done, 'window.resolveLocalFileSystemURL - Error resolving URI: ' + entry.nativeURL));
                     }, failed.bind(null, done, 'createFile - Error creating file: ../' + fileName));
                 }, failed.bind(null, done, 'createDirectory - Error creating directory: ' + dirName));
             });
@@ -3482,6 +3455,8 @@ exports.defineAutoTests = function () {
                 // From Cordova-Android 10.x, app content is served from the "https" scheme by default
                 // The paramedic plugin changes the scheme to http to avoid ssl.
                 pathExpect = 'http://';
+            } else if (cordova.platformId === 'ios') {
+                pathExpect = 'app://';
             } else if (isChrome) {
                 pathExpect = 'filesystem:http://';
             } else if (isElectron) {
@@ -3544,7 +3519,7 @@ exports.defineAutoTests = function () {
                 const fileName = 'native.resolve.uri';
                 // create a new file entry
                 createFile(fileName, function (entry) {
-                    resolveLocalFileSystemURL(entry.toURL(), function (entry) { // eslint-disable-line no-undef
+                    resolveLocalFileSystemURL(entry.nativeURL, function (entry) { // eslint-disable-line no-undef
                         expect(entry.toNativeURL).toBeDefined();
                         expect(entry.name).toCanonicallyMatch(fileName);
                         expect(typeof entry.toNativeURL).toBe('function');
@@ -3554,7 +3529,7 @@ exports.defineAutoTests = function () {
                         expect(nativeURL.substring(nativeURL.length - fileName.length)).toEqual(fileName);
                         // cleanup
                         deleteEntry(fileName, done);
-                    }, failed.bind(null, done, 'resolveLocalFileSystemURL - Error resolving file URL: ' + entry.toURL()));
+                    }, failed.bind(null, done, 'resolveLocalFileSystemURL - Error resolving file URL: ' + entry.nativeURL));
                 }, failed.bind(null, done, 'createFile - Error creating file: ' + fileName));
             });
         });
@@ -3595,7 +3570,10 @@ exports.defineAutoTests = function () {
                 });
             });
 
-            it('file.spec.121 should resolve native URLs returned by API', function (done) {
+            // TODO: .toNativeURL() / .toURL() were repurposed at some point so return a DOM-usable url
+            // these urls are not resolvable as they expect file:// or content://schemes
+            // I think these tests can simply be removed.
+            xit('file.spec.121 should resolve native URLs returned by API', function (done) {
                 const fileName = 'native.resolve.uri1';
                 // create a new file entry
                 createFile(fileName, function (entry) {
@@ -3608,7 +3586,10 @@ exports.defineAutoTests = function () {
                 }, failed.bind(null, done, 'createFile - Error creating file: ' + fileName));
             });
 
-            it('file.spec.122 should resolve native URLs returned by API with localhost', function (done) {
+            // TODO: .toNativeURL() / .toURL() were repurposed at some point so return a DOM-usable url
+            // these urls are not resolvable as they expect file:// or content://schemes
+            // I think these tests can simply be removed.
+            xit('file.spec.122 should resolve native URLs returned by API with localhost', function (done) {
                 const fileName = 'native.resolve.uri2';
                 // create a new file entry
                 createFile(fileName, function (entry) {
@@ -3622,7 +3603,10 @@ exports.defineAutoTests = function () {
                 }, failed.bind(null, done, 'createFile - Error creating file: ' + fileName));
             });
 
-            it('file.spec.123 should resolve native URLs returned by API with query string', function (done) {
+            // TODO: .toNativeURL() / .toURL() were repurposed at some point so return a DOM-usable url
+            // these urls are not resolvable as they expect file:// or content://schemes
+            // I think these tests can simply be removed.
+            xit('file.spec.123 should resolve native URLs returned by API with query string', function (done) {
                 if (isElectron) {
                     pending('not supported in Electron');
                 }
@@ -3639,7 +3623,10 @@ exports.defineAutoTests = function () {
                 }, failed.bind(null, done, 'createFile - Error creating file: ' + fileName));
             });
 
-            it('file.spec.124 should resolve native URLs returned by API with localhost and query string', function (done) {
+            // TODO: .toNativeURL() / .toURL() were repurposed at some point so return a DOM-usable url
+            // these urls are not resolvable as they expect file:// or content://schemes
+            // I think these tests can simply be removed.
+            xit('file.spec.124 should resolve native URLs returned by API with localhost and query string', function (done) {
                 if (isElectron) {
                     pending('not supported in Electron');
                 }
