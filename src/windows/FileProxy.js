@@ -595,9 +595,11 @@ module.exports = {
             try {
                 win(Windows.Security.Cryptography.CryptographicBuffer.convertBinaryToString(encoding, buffer));
             } catch (e) {
+                console.error("cannot readAsText " + url, e);
                 fail(FileError.ENCODING_ERR);
             }
-        }, function () {
+        }, function (e) {
+            console.error("cannot readAsText " + url, e);
             fail(FileError.NOT_FOUND_ERR);
         });
     },
@@ -634,7 +636,8 @@ module.exports = {
                         win(byteString.slice(startPos, endPos));
                     }
                 );
-            }, function () {
+            }, function (e) {
+                console.error("cannot readAsBinaryString " + url, e);
                 fail(FileError.NOT_FOUND_ERR);
             }
         );
@@ -683,7 +686,8 @@ module.exports = {
                     win(resultArrayBuffer);
                 };
                 xhr.send();
-            }, function () {
+            }, function (e) {
+                console.error("cannot readAsArrayBuffer " + url, e);
                 fail(FileError.NOT_FOUND_ERR);
             }
         );
@@ -713,7 +717,8 @@ module.exports = {
                         win(result);
                     }
                 );
-            }, function () {
+            }, function (e) {
+                console.error("cannot readAsDataURL " + url, e);
                 fail(FileError.NOT_FOUND_ERR);
             }
         );
