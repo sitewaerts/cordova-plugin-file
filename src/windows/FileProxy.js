@@ -29,6 +29,18 @@ const FileSystem = require('./FileSystem');
 const LocalFileSystem = require('./LocalFileSystem');
 const utils = require('cordova/utils');
 
+/**
+ *
+ * @param {string} message
+ * @param {any} [error]
+ */
+function logError(message, error){
+    if(error)
+        console.error("FileProxy.js: " + message, JSON.stringify(error));
+    else
+        console.error("FileProxy.js: " + message);
+}
+
 function Entry (isFile, isDirectory, name, fullPath, filesystemName, nativeURL) {
     this.isFile = !!isFile;
     this.isDirectory = !!isDirectory;
@@ -414,6 +426,7 @@ function transport (success, fail, args, ops) { // ["fullPath","parent", "newNam
     const srcPath = pathFromURL(src);
     const dstPath = pathFromURL(parent);
     if (!(srcFS && dstFS && validName(name))) {
+        logError("cannot resolve filesystem", {src:src, parent:parent, name:name});
         fail(FileError.ENCODING_ERR);
         return;
     }
@@ -454,7 +467,8 @@ function transport (success, fail, args, ops) { // ["fullPath","parent", "newNam
                                 dstFS.makeNativeURL(tgtFsPath)
                             ));
                         },
-                        function () {
+                        function (e) {
+                            logError("fileOp failed", {src:src, parent:parent, name:name, cause: e});
                             fail(FileError.INVALID_MODIFICATION_ERR);
                         }
                     );
@@ -468,13 +482,15 @@ function transport (success, fail, args, ops) { // ["fullPath","parent", "newNam
                             dstFS.makeNativeURL(tgtFsPath)
                         ));
                     },
-                    function () {
+                    function (e) {
+                        logError("folderOp failed", {src:src, parent:parent, name:name, cause: e});
                         fail(FileError.INVALID_MODIFICATION_ERR);
                     }
                 );
             }
         },
-        function () {
+        function (e) {
+            logError("cannot resolve paths", {src:src, parent:parent, name:name, cause: e});
             fail(FileError.INVALID_MODIFICATION_ERR);
         }
     );
@@ -504,7 +520,8 @@ module.exports = {
             storageFile.getBasicPropertiesAsync().then(
                 function (basicProperties) {
                     success(new File(storageFile.name, storageFile.path, storageFile.fileType, basicProperties.dateModified, basicProperties.size));
-                }, function () {
+                }, function (e) {
+                    logError("file not readable", e);
                     fail(FileError.NOT_READABLE_ERR);
                 }
             );
@@ -519,7 +536,8 @@ module.exports = {
                     };
                     success(metadata);
                 },
-                function () {
+                function (e) {
+                    logError("file not readable", e);
                     fail(FileError.NOT_READABLE_ERR);
                 }
             );
@@ -528,7 +546,8 @@ module.exports = {
         getFileFromPathAsync(fullPath).then(getMetadataForFile,
             function () {
                 getFolderFromPathAsync(fullPath).then(getMetadataForFolder,
-                    function () {
+                    function (e) {
+                        logError("file not found", e);
                         fail(FileError.NOT_FOUND_ERR);
                     }
                 );
@@ -555,7 +574,7 @@ module.exports = {
         const result = new DirectoryEntry(parname, parpath, fs.name, fs.makeNativeURL(parpath));
         getFolderFromPathAsync(fullPath).done(
             function () { win(result); },
-            function () { fail(FileError.INVALID_STATE_ERR); }
+            function (e) { logError("cannot access " + fullPath, e); fail(FileError.INVALID_STATE_ERR); }
         );
     },
 
@@ -595,11 +614,11 @@ module.exports = {
             try {
                 win(Windows.Security.Cryptography.CryptographicBuffer.convertBinaryToString(encoding, buffer));
             } catch (e) {
-                console.error("cannot readAsText " + url, e);
+                logError("cannot readAsText " + url, e);
                 fail(FileError.ENCODING_ERR);
             }
         }, function (e) {
-            console.error("cannot readAsText " + url, e);
+            logError("cannot readAsText " + url, e);
             fail(FileError.NOT_FOUND_ERR);
         });
     },
@@ -637,7 +656,7 @@ module.exports = {
                     }
                 );
             }, function (e) {
-                console.error("cannot readAsBinaryString " + url, e);
+                logError("cannot readAsBinaryString " + url, e);
                 fail(FileError.NOT_FOUND_ERR);
             }
         );
@@ -687,7 +706,7 @@ module.exports = {
                 };
                 xhr.send();
             }, function (e) {
-                console.error("cannot readAsArrayBuffer " + url, e);
+                logError("cannot readAsArrayBuffer " + url, e);
                 fail(FileError.NOT_FOUND_ERR);
             }
         );
@@ -718,7 +737,7 @@ module.exports = {
                     }
                 );
             }, function (e) {
-                console.error("cannot readAsDataURL " + url, e);
+                logError("cannot readAsDataURL " + url, e);
                 fail(FileError.NOT_FOUND_ERR);
             }
         );
@@ -755,7 +774,8 @@ module.exports = {
                     storageFolder.createFolderAsync(name, Windows.Storage.CreationCollisionOption.failIfExists).done(
                         function (storageFolder) {
                             win(new DirectoryEntry(storageFolder.name, fspath, fs.name, fs.makeNativeURL(fspath)));
-                        }, function (err) { // eslint-disable-line n/handle-callback-err
+                        }, function (e) { // eslint-disable-line n/handle-callback-err
+                            logError("cannot create folder " + name, e);
                             fail(FileError.PATH_EXISTS_ERR);
                         }
                     );
@@ -763,7 +783,8 @@ module.exports = {
                     storageFolder.createFolderAsync(name, Windows.Storage.CreationCollisionOption.openIfExists).done(
                         function (storageFolder) {
                             win(new DirectoryEntry(storageFolder.name, fspath, fs.name, fs.makeNativeURL(fspath)));
-                        }, function () {
+                        }, function (e) {
+                            logError("cannot create folder " + name, e);
                             fail(FileError.INVALID_MODIFICATION_ERR);
                         }
                     );
@@ -772,10 +793,11 @@ module.exports = {
                         function (storageFolder) {
                             win(new DirectoryEntry(storageFolder.name, fspath, fs.name, fs.makeNativeURL(fspath)));
                         },
-                        function () {
+                        function (e) {
                             // check if path actually points to a file
                             storageFolder.getFileAsync(name).done(
                                 function () {
+                                    logError("cannot access existing file as folder", e);
                                     fail(FileError.TYPE_MISMATCH_ERR);
                                 }, function () {
                                     fail(FileError.NOT_FOUND_ERR);
@@ -784,7 +806,8 @@ module.exports = {
                         }
                     );
                 }
-            }, function () {
+            }, function (e) {
+                logError("cannot access folder " + wpath, e);
                 fail(FileError.NOT_FOUND_ERR);
             }
         );
@@ -807,7 +830,8 @@ module.exports = {
 
         getFileFromPathAsync(fullPath).then(
             function (storageFile) {
-                storageFile.deleteAsync().done(win, function () {
+                storageFile.deleteAsync().done(win, function (e) {
+                    logError("cannot delete folder " + fullPath, e);
                     fail(FileError.INVALID_MODIFICATION_ERR);
                 });
             },
@@ -831,7 +855,8 @@ module.exports = {
                                     if (folderList.length === 0) {
                                         sFolder.deleteAsync().done(
                                             win,
-                                            function () {
+                                            function (e) {
+                                                logError("cannot delete folder", e);
                                                 fail(FileError.INVALID_MODIFICATION_ERR);
                                             }
                                         );
@@ -841,7 +866,8 @@ module.exports = {
                                 }
                             });
                     },
-                    function () {
+                    function (e) {
+                        logError("cannot access folder " + fullPath, e);
                         fail(FileError.NOT_FOUND_ERR);
                     }
                 );
@@ -870,7 +896,8 @@ module.exports = {
             }, function (err) {
                 fail(err);
             });
-        }, function () {
+        }, function (e) {
+            logError("cannot access folder " + fullPath, e);
             fail(FileError.FILE_NOT_FOUND_ERR);
         });
     },
