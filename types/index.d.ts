@@ -43,7 +43,7 @@ interface Window {
 
 /** This interface represents a file system. */
 interface FileSystem {
-    /* The name of the file system, unique across the list of exposed file systems. */
+    /** The name of the file system, unique across the list of exposed file systems. */
     readonly name: string;
     /** The root directory of the file system. */
     readonly root: DirectoryEntry;
