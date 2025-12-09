@@ -24,14 +24,15 @@ let fsMap = null;
 const FileSystem = require('./FileSystem');
 const exec = require('cordova/exec');
 
-// Overridden by Android, BlackBerry 10 and iOS to populate fsMap.
+// Override used by Android, iOS, OSX and electron to populate fsMap.
 require('./fileSystems').getFs = function (name, callback) {
-    function success (response) {
+    function success (fileSystemDefs) {
         fsMap = {};
-        for (let i = 0; i < response.length; ++i) {
-            const fsRoot = response[i];
+        for (let i = 0; i < fileSystemDefs.length; ++i) {
+            const fsDef = fileSystemDefs[i];
+            const fsRoot = fsDef?.root || fsDef; // possible android sends array of roots instead of defs
             if (fsRoot) {
-                const fs = new FileSystem(fsRoot.filesystemName, fsRoot);
+                const fs = new FileSystem(fsRoot.filesystemName || fsDef.name, fsRoot);
                 fsMap[fs.name] = fs;
             }
         }
