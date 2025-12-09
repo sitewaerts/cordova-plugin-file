@@ -106,7 +106,7 @@ class FileUrlDef
     constructor(base, skipNativeUrl)
     {
         this.base = base.endsWith(PATH_SEP) ? base.substring(0, base.length - 1) : base;
-        this.prefix = this.base + PATH_SEP
+        this.prefix = this.base + PATH_SEP;
         this.equalsPrefixRE = new RegExp("^" + reEscape(this.base) + reEscape(PATH_SEP) + '?$', "i"); // match ignoring case
         this.startsWithPrefixRE = new RegExp("^" + reEscape(this.prefix), "i"); // match ignoring case
 
@@ -134,7 +134,7 @@ class FileOSDef
     constructor(osDirPath)
     {
         this.base = osDirPath.endsWith(PATH_SEP) ? osDirPath.substring(0, osDirPath.length - 1) : osDirPath;
-        this.prefix = this.base + PATH_SEP
+        this.prefix = this.base + PATH_SEP;
         this.equalsPrefixRE = new RegExp("^" + reEscape(this.base) + reEscape(PATH_SEP) + '?$', "i"); // match ignoring case
         this.startsWithPrefixRE = new RegExp("^" + reEscape(this.prefix), "i"); // match ignoring case
     }
@@ -1047,11 +1047,11 @@ const pluginAPI = {
 
 
     /**
-     * @returns {Record<string, FileSystemInfo>}
+     * @returns {Array<FileSystemInfo>}
      */
     requestAllFileSystems: function ()
     {
-        return allFileSystems;
+        return Object.values(allFileSystems);
     },
 
     /**

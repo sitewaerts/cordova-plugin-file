@@ -60,7 +60,7 @@ const DirectoryEntry = function (name, fullPath, filesystemName, nativeURL) {
     DirectoryEntry.__super__.constructor.call(this, false, true, name, fullPath, filesystemName, nativeURL);
 };
 
-utils.extend(DirectoryEntry, Entry);
+Object.assign(DirectoryEntry, Entry);
 
 const getFolderFromPathAsync = Windows.Storage.StorageFolder.getFolderFromPathAsync;
 const getFileFromPathAsync = Windows.Storage.StorageFile.getFileFromPathAsync;
@@ -498,7 +498,7 @@ function transport (success, fail, args, ops) { // ["fullPath","parent", "newNam
 
 module.exports = {
     requestAllFileSystems: function () {
-        return getAllFS();
+        return Object.values(getAllFS());
     },
     requestAllPaths: function (success) {
         success(windowsPaths);
