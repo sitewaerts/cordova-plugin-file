@@ -33,6 +33,11 @@ xmlns:android="http://schemas.android.com/apk/res/android"
         <engine name="cordova-android" version=">=12.0.0" />
     </engines>
 
+    <js-module src="www/FilePlugin.js">
+        <clobbers target="cordova.plugins.file" />
+    </js-module>
+
+
     <js-module src="www/DirectoryEntry.js" name="DirectoryEntry">
         <clobbers target="window.DirectoryEntry" />
     </js-module>
@@ -270,7 +275,6 @@ to config.xml in order for the application to find previously stored files.
         <!--
 
         // use scheme and hostname from app: CSP in index.html cannot deny loading of file-plugin sources
-        // <preference name="ELECTRON_FILES_SCHEME" default="" />
         // <preference name="ELECTRON_FILES_SCHEME" default="_use_app_scheme" />
 
         // use file scheme:
@@ -284,8 +288,12 @@ to config.xml in order for the application to find previously stored files.
         // use cdv scheme with hostname 'localhost': requires more memory than custom scheme as the urls are longer
         // <preference name="ELECTRON_FILES_SCHEME" default="cdvfile" />
 
+        // use default specified in impl (currently: efs)
+        // <preference name="ELECTRON_FILES_SCHEME" default="" />
+
+
         -->
-        <preference name="ELECTRON_FILES_SCHEME" default="cdvfile" />
+        <preference name="ELECTRON_FILES_SCHEME" default="" />
 
 
         <framework src="src/electron" />

@@ -22,6 +22,9 @@
 const exec = require('cordova/exec');
 const channel = require('cordova/channel');
 
+/**
+ * @type {FileSystemPaths}
+ */
 exports.file = {
     // Read-only directory where the application is installed.
     applicationDirectory: null,
