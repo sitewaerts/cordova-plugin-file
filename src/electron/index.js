@@ -30,25 +30,25 @@ const mime = require('mime');
 
 /**
  * @typedef {Object} FileSystemInfo
- * @property {string} name
+ * @property {string}    name
  * @property {EntryInfo} root
  */
 
 /**
  * @typedef {Object} EntryInfo
- * @property {boolean} isFile
- * @property {boolean} isDirectory
- * @property {string} name
- * @property {string} fullPath
+ * @property {boolean}       isFile
+ * @property {boolean}       isDirectory
+ * @property {string}        name
+ * @property {string}        fullPath
  * @property {string | null} [filesystemName]
- * @property {string?} nativeURL
+ * @property {string?}       nativeURL
  */
 
 /**
  * @typedef {Object} FileMetadata
  * @property {string}  name
  * @property {string}  localURL
- * @property {string?}  nativeURL
+ * @property {string?} nativeURL
  * @property {string}  type
  * @property {number}  lastModified
  * @property {number}  size
@@ -65,6 +65,7 @@ const mime = require('mime');
 const PATH_SEP = '/';
 
 const FILE_SCHEME = "file"
+const EFS_SCHEME = "efs"
 
 const CDV_SCHEME = "cdvfile"
 const CDV_HOST = "localhost"
@@ -188,16 +189,18 @@ class FileLocation
          */
         this.urlDefs = {};
 
-        // ignore appHostname
+        // file: ignore appHostname
         this.urlDefs[FILE_SCHEME] = new FileUrlDef(url.pathToFileURL(osDirPath).toString())
 
-        // hostname always localhost
+        // cdvfile: hostname always localhost
         this.urlDefs[CDV_SCHEME] = new FileUrlDef(CDV_PREFIX + name, true)
 
+        // appScheme is never CDV_SCHEME
         if (appScheme !== FILE_SCHEME) // app scheme always uses appHostname
             this.urlDefs[appScheme] = new FileUrlDef(appScheme + "://" + appHostname + PATH_SEP + name)
 
-        if (filesScheme !== appScheme && filesScheme !== CDV_SCHEME) // custom files scheme never uses hostname
+        // custom files scheme never uses hostname (to save memory with shorter urls)
+        if (filesScheme !== appScheme && filesScheme !== CDV_SCHEME)
             this.urlDefs[filesScheme] = new FileUrlDef(filesScheme + ":///" + name)
 
         this.urlDef = this.urlDefs[filesScheme];
@@ -213,7 +216,7 @@ class FileLocation
             root: createEntryInfo(false, "root:" + name, PATH_SEP, this)
         };
         allPaths[name + "Directory"] = this.osPathDef.prefix;
-        allUrls[name + "Directory"] = this.urlDefs[filesScheme].prefix;
+        allUrls[name + "Directory"] = this.urlDef.prefix;
 
         console.log("cordova-plugin-file: file location '" + name + "':" + osDirPath + " --> " + this.urlDef.prefix);
     }
@@ -618,8 +621,8 @@ const pluginAPI = {
     /**
      * Get the file given the path and fileName.
      *
-     * @param {string} parentUri: The fullPath to the directory the file is in.
-     * @param {string} dstName: The filename including the extension.
+     * @param {string} parentUri The fullPath to the directory the file is in.
+     * @param {string} dstName The filename including the extension.
      * @param {{create?: boolean, exclusive?: boolean}} [options]: fileOptions .
      *
      * @returns {Promise<EntryInfo>} - The file object that is converted to FileEntry by cordova.
@@ -667,7 +670,7 @@ const pluginAPI = {
     /**
      * get the file or directory Metadata.
      *
-     * @param {string} uri: the full path of the file or directory.
+     * @param {string} uri the full path of the file or directory.
      * @returns {Promise<DirectoryMetadata>} - An Object containing the metadata.
      */
     getMetadata: function ([uri])
@@ -692,8 +695,8 @@ const pluginAPI = {
     /**
      * set the file or directory Metadata.
      *
-     * @param {string} uri: the full path of the file including the extension.
-     * @param {{modificationTime:number}} metadataObject: the object containing metadataValues (currently only supports modificationTime)
+     * @param {string} uri the full path of the file including the extension.
+     * @param {{modificationTime:number}} metadataObject the object containing metadataValues (currently only supports modificationTime)
      * @returns {Promise<void>}
      */
     setMetadata: function ([uri, metadataObject])
@@ -714,10 +717,10 @@ const pluginAPI = {
     /**
      * Read the file contents as text
      *
-     * @param {string}  uri: The fullPath of the file to be read.
-     * @param {string}  enc: The encoding to use to read the file.
-     * @param {number}  startPos: The start position from which to begin reading the file.
-     * @param {number}  endPos: The end position at which to stop reading the file.
+     * @param {string}  uri The fullPath of the file to be read.
+     * @param {string}  enc The encoding to use to read the file.
+     * @param {number}  startPos The start position from which to begin reading the file.
+     * @param {number}  endPos The end position at which to stop reading the file.
      *
      * @returns {Promise<string>} The string value within the file.
      */
@@ -729,9 +732,9 @@ const pluginAPI = {
     /**
      * Read the file as a data URL.
      *
-     * @param {string}  uri: The fullPath of the file to be read.
-     * @param {number}  startPos: The start position from which to begin reading the file.
-     * @param {number}  endPos: The end position at which to stop reading the file.
+     * @param {string}  uri The fullPath of the file to be read.
+     * @param {number}  startPos The start position from which to begin reading the file.
+     * @param {number}  endPos The end position at which to stop reading the file.
      *
      * @returns {Promise<string>} the file as a dataUrl.
      */
@@ -743,9 +746,9 @@ const pluginAPI = {
     /**
      * Read the file contents as binary string.
      *
-     * @param {string}  uri: The fullPath of the file to be read.
-     * @param {number}  startPos: The start position from which to begin reading the file.
-     * @param {number}  endPos: The end position at which to stop reading the file.
+     * @param {string}  uri The fullPath of the file to be read.
+     * @param {number}  startPos The start position from which to begin reading the file.
+     * @param {number}  endPos The end position at which to stop reading the file.
      *
      * @returns {Promise<string>} The file as a binary string.
      */
@@ -757,9 +760,9 @@ const pluginAPI = {
     /**
      * Read the file contents as text
      *
-     * @param {string}  uri: The fullPath of the file to be read.
-     * @param {number}  startPos: The start position from which to begin reading the file.
-     * @param {number}  endPos: The end position at which to stop reading the file.
+     * @param {string}  uri The fullPath of the file to be read.
+     * @param {number}  startPos The start position from which to begin reading the file.
+     * @param {number}  endPos The end position at which to stop reading the file.
 
      * @returns {Promise<Array>} The file as an arrayBuffer.
      */
@@ -804,7 +807,7 @@ const pluginAPI = {
     /**
      * Remove the file or directory
      *
-     * @param {string} uri: The fullPath of the file or directory.
+     * @param {string} uri The fullPath of the file or directory.
      *
      * @returns {Promise<void>} resolves when file or directory is deleted.
      */
@@ -833,9 +836,9 @@ const pluginAPI = {
     /**
      * Get the directory given the path and directory name.
      *
-     * @param {string} dstUri: The fullPath to the parent directory
-     * @param {string} dstName: The name of the directory.
-     * @param {{create?: boolean, exclusive?: boolean}} options: options
+     * @param {string} dstUri The fullPath to the parent directory
+     * @param {string} dstName The name of the directory.
+     * @param {{create?: boolean, exclusive?: boolean}} options options
      *
      * @returns {Promise<EntryInfo>} The directory object that is converted to DirectoryEntry by cordova.
      */
@@ -847,7 +850,7 @@ const pluginAPI = {
     /**
      * Get the Parent directory
      *
-     * @param {string} uri: The fullPath to the file or directory.
+     * @param {string} uri The fullPath to the file or directory.
      *
      * @returns {Promise<EntryInfo>} The parent directory object that is converted to DirectoryEntry by cordova.
      */
@@ -862,9 +865,9 @@ const pluginAPI = {
     /**
      * Copy File
      *
-     * @param {string} srcUri: The fullPath to the file including extension.
-     * @param {string} dstParentUri: The destination directory.
-     * @param {string} dstName: The destination file name.
+     * @param {string} srcUri The fullPath to the file including extension.
+     * @param {string} dstParentUri The destination directory.
+     * @param {string} dstName The destination file name.
      *
      * @returns {Promise<EntryInfo>} The copied file.
      */
@@ -908,9 +911,9 @@ const pluginAPI = {
     /**
      * Move File/Directory. Always Overwrites.
      *
-     * @param {string} srcUri: The fullPath to the file including extension.
-     * @param {string} dstParentUri: The destination directory.
-     * @param {string} dstName: The destination file name.
+     * @param {string} srcUri The fullPath to the file including extension.
+     * @param {string} dstParentUri The destination directory.
+     * @param {string} dstName The destination file name.
      *
      * @returns {Promise<EntryInfo>} The moved file.
      */
@@ -956,9 +959,9 @@ const pluginAPI = {
     /**
      * Write to a file.
      *
-     * @param {string} uri: the full path of the file including fileName and extension.
-     * @param {string | ArrayBuffer} data: the data to be written to the file.
-     * @param {number} [position = 0]: the position offset to start writing from.
+     * @param {string} uri the full path of the file including fileName and extension.
+     * @param {string | ArrayBuffer} data the data to be written to the file.
+     * @param {number} [position = 0] the position offset to start writing from.
      * @returns {Promise<number>} An object with information about the amount of bytes written.
      */
     write: function ([uri, data, position = 0])
@@ -999,8 +1002,8 @@ const pluginAPI = {
     /**
      * Truncate the file.
      *
-     * @param {string} uri: the full path of the file including file extension
-     * @param {number} [size = 0]: the length of the file to truncate to.
+     * @param {string} uri the full path of the file including file extension
+     * @param {number} [size = 0] the length of the file to truncate to.
      * @returns {Promise<number>}
      */
     truncate: function ([uri, size = 0])
@@ -1024,7 +1027,7 @@ const pluginAPI = {
     /**
      * resolve the File system URL as a FileEntry or a DirectoryEntry.
      *
-     * @param {string} uri: The full path for the file.
+     * @param {string} uri The full path for the file.
      * @returns {Promise<EntryInfo>} The entry for the file or directory.
      */
     resolveLocalFileSystemURI: function ([uri])
@@ -1123,11 +1126,11 @@ const pluginUtil = {
  * Read the file contents as specified.
  * @template R
  *
- * @param  {'text'|'dataURL'|'arrayBuffer'|'binaryString'} outputFormat: what to read the file as
- * @param  {string} uri: The fullPath of the file to be read.
- * @param  {string | null} encoding: The encoding to use to read the file.
- * @param  {number} startPos: The start position from which to begin reading the file.
- * @param  {number} endPos: The end position at which to stop reading the file.
+ * @param  {'text'|'dataURL'|'arrayBuffer'|'binaryString'} outputFormat what to read the file as
+ * @param  {string} uri The fullPath of the file to be read.
+ * @param  {string | null} encoding The encoding to use to read the file.
+ * @param  {number} startPos The start position from which to begin reading the file.
+ * @param  {number} endPos The end position at which to stop reading the file.
  *
  * @returns {Promise<R>} The string value within the file.
  */
@@ -1177,9 +1180,9 @@ function readAs(outputFormat, uri, encoding, startPos, endPos)
 /**
  * Get the file given the path and fileName.
  *
- * @param {string} parentUri: The fullPath to the directory the file is in.
- * @param {string} fileName: The filename including the extension.
- * @param {{create?:boolean, exclusive?:boolean}} [options]: fileOptions
+ * @param {string} parentUri The fullPath to the directory the file is in.
+ * @param {string} fileName The filename including the extension.
+ * @param {{create?:boolean, exclusive?:boolean}} [options] file options
  *
  * @returns {Promise<EntryInfo>} The file object that is converted to FileEntry by cordova.
  */
@@ -1367,12 +1370,14 @@ function getSchemeConfig(ctx)
     if (appScheme === CDV_SCHEME)
         throw new Error("illegal app scheme '" + appScheme + "'");
 
-    let ELECTRON_FILES_SCHEME = ctx.getVariable(VARIABLE_ELECTRON_FILES_SCHEME);
-    if (!ELECTRON_FILES_SCHEME || ELECTRON_FILES_SCHEME === '' || ELECTRON_FILES_SCHEME === '_use_app_scheme')
-        ELECTRON_FILES_SCHEME = appScheme;
-    if (ELECTRON_FILES_SCHEME.toLowerCase() !== ELECTRON_FILES_SCHEME)
-        throw new Error("illegal files scheme '" + ELECTRON_FILES_SCHEME + "'. Must use lower case characters only!");
-    const filesScheme = ELECTRON_FILES_SCHEME;
+    let filesScheme = ctx.getVariable(VARIABLE_ELECTRON_FILES_SCHEME);
+    if (!filesScheme || filesScheme.length===0)
+        filesScheme = EFS_SCHEME;
+    else if (filesScheme === '_use_app_scheme')
+        filesScheme = appScheme;
+
+    if (filesScheme.toLowerCase() !== filesScheme)
+        throw new Error("illegal files scheme '" + filesScheme + "'. Must use lower case characters only!");
 
     return {
         filesScheme,
@@ -1426,6 +1431,10 @@ plugin.configure = (ctx) =>
         if(process.windowsStore)
         {
             // app was installed from appx
+
+            // TODO: what about app.isPackaged and process.defaultApp
+            //   https://www.electronjs.org/docs/latest/api/app#appispackaged-readonly
+
             // use %LOCALAPPDATA%\Packages\%PACKAGE_FAMILY_ID%
             // this path is identically to the path formerly used in cordova-windows (UWP App)
             const packageString = process.argv0.split('\\').filter((comp)=>{return comp.startsWith(appPackageName)})[0]
@@ -1462,13 +1471,13 @@ plugin.configure = (ctx) =>
 
     const {appScheme, filesScheme} = getSchemeConfig(ctx);
     if (appScheme === filesScheme)
-        // scheme already registered as privileged in cdv-electron-main.js, cdvfile and efs not required
+        // scheme already registered as privileged in cdv-electron-main.js, additional scheme not required
         return;
 
     if (filesScheme === FILE_SCHEME)
-        return;// scheme already registered as privileged, cdvfile and efs not required
+        return; // scheme already registered as privileged, additional scheme not required
 
-    // scheme is 'cdvfile' or any custom value now
+    // scheme is 'cdvfile', 'efs' or any custom value now
 
     // supportFetchAPI=true: Allow urls with this scheme to be loaded via fetch / xhr
     // bypassCSP=false: access to this scheme must be explicitly allowed in the CSP of www/index.html
@@ -1590,8 +1599,6 @@ Object.keys(pluginAPI).forEach((apiMethod) =>
             await plugin.initialize({
                 getVariable(key)
                 {
-                    if (key === VARIABLE_ELECTRON_FILES_SCHEME)
-                        return FILE_SCHEME; // always assume 'file' scheme as this is the only one configured correctly in main
                     return pluginVariables[key]
                 },
                 getHostname()

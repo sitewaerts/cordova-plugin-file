@@ -354,8 +354,24 @@ persistent filesystem, then the `Library` setting is generally recommended.
 
 ## Electron Quirks
 
-Files served from any other location than `cordova.file.applicationDirectory` are accessible with urls starting with  `efs:///`
+Files served from any other location than `cordova.file.applicationDirectory` are accessible with urls starting with  `files:///`
 
+### Plugin Variable `ELECTRON_FILES_SCHEME`
+```bash
+cordova plugin add cordova-plugin-file --variable ELECTRON_FILES_SCHEME=f
+```
+
+| Variable Value       | Resulting File URl Base                  |
+|----------------------|------------------------------------------|
+| Unspecified or empty | `efs:///`                                |
+| `_use_app_scheme`    | `appScheme + '://' + appHostname + '/'`  |
+| `cdvfile`            | `cdvfile://localhost/`                   |
+| `file`               | `file:///`                               |
+| any other            | `<ANY OTHER>:///`                        |
+
+The values `_use_app_scheme`, `cdvfile` and `file` lead to unnecessary long file urls, which has impact on the memory footprint of your application. Prefer using the default value `efs` or any other short value.  
+
+The value `_use_app_scheme` may be used to avoid cross origin issues between sources compiled in the app and those stored in the file system. 
 
 ## Browser Quirks
 
