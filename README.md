@@ -354,7 +354,7 @@ persistent filesystem, then the `Library` setting is generally recommended.
 
 ## Electron Quirks
 
-Files served from any other location than `cordova.file.applicationDirectory` are accessible with urls starting with  `files:///`
+Files served from any other location than `cordova.file.applicationDirectory` are accessible with urls starting with  `efs:///`
 
 ### Plugin Variable `ELECTRON_FILES_SCHEME`
 ```bash

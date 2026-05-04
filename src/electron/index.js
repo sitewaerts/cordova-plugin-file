@@ -1308,12 +1308,12 @@ function getDirectory(parentUri, dirName, options)
             else if (options.create === true && !exists)
             {
                 // If create is true, the path doesn't exist, and no other error occurs,
-                // getDirectory must create it as a zero-length file and return a corresponding
-                // MyDirectoryEntry.
+                // getDirectory must create it and return a corresponding MyDirectoryEntry.
                 if (!entry.root.modifiable)
                     return reject(FileError.INVALID_MODIFICATION_ERR)
 
-                fs.mkdir(entry.getOSPath(), (err) =>
+                // recursive:true avoids error if dir already exists (may have been created by another async task meanwhile)
+                fs.mkdir(entry.getOSPath(), {recursive:true},(err) =>
                 {
                     if (err)
                     {
