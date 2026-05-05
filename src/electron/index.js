@@ -1362,7 +1362,7 @@ const VARIABLE_ELECTRON_FILES_SCHEME = 'ELECTRON_FILES_SCHEME'
 
 /**
  * @param {CordovaElectronPluginContext} ctx
- * @returns {{filesScheme:string, appScheme:string}}
+ * @returns {{filesScheme:string, appScheme:string, filesSchemeStandard:boolean}}
  */
 function getSchemeConfig(ctx)
 {
@@ -1380,8 +1380,10 @@ function getSchemeConfig(ctx)
         throw new Error("illegal files scheme '" + filesScheme + "'. Must use lower case characters only!");
 
     return {
-        filesScheme,
-        appScheme
+        filesScheme: filesScheme,
+        appScheme: appScheme,
+        // only these schemes use generic uri scheme (with hostname)
+        filesSchemeStandard: filesScheme === appScheme || filesScheme === CDV_SCHEME
     }
 }
 
@@ -1469,7 +1471,7 @@ plugin.configure = (ctx) =>
     }
 
 
-    const {appScheme, filesScheme} = getSchemeConfig(ctx);
+    const {appScheme, filesScheme, filesSchemeStandard} = getSchemeConfig(ctx);
     if (appScheme === filesScheme)
         // scheme already registered as privileged in cdv-electron-main.js, additional scheme not required
         return;
@@ -1479,14 +1481,15 @@ plugin.configure = (ctx) =>
 
     // scheme is 'cdvfile', 'efs' or any custom value now
 
+    // standard=true: generic uri syntax (https://www.electronjs.org/docs/latest/api/protocol#protocolregisterschemesasprivilegedcustomschemes, https://datatracker.ietf.org/doc/html/rfc3986#section-3)
     // supportFetchAPI=true: Allow urls with this scheme to be loaded via fetch / xhr
-    // corsEnabled
+    // corsEnabled: no known effect
     // bypassCSP=false: access to this scheme must be explicitly allowed in the CSP of www/index.html
     // secure=true: no mixed content warnings
     // stream=true: support for media playback
     ctx.registerSchemeAsPrivileged({
         scheme: filesScheme,
-        privileges: {supportFetchAPI: true, corsEnabled: true, bypassCSP: false, secure: true, stream: true}
+        privileges: {standard:filesSchemeStandard, supportFetchAPI: true, corsEnabled: true, bypassCSP: false, secure: true, stream: true}
     })
 }
 
