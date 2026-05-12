@@ -354,24 +354,26 @@ persistent filesystem, then the `Library` setting is generally recommended.
 
 ## Electron Quirks
 
-Files served from any other location than `cordova.file.applicationDirectory` are accessible with urls starting with  `efs:///`
+Files served from any other location than `cordova.file.applicationDirectory` are accessible with urls starting with  `cdvfile://localhost/`
 
 ### Plugin Variable `ELECTRON_FILES_SCHEME`
 ```bash
 cordova plugin add cordova-plugin-file --variable ELECTRON_FILES_SCHEME=f
 ```
 
-| Variable Value       | Resulting File URl Base                  |
-|----------------------|------------------------------------------|
-| Unspecified or empty | `efs:///`                                |
-| `_use_app_scheme`    | `appScheme + '://' + appHostname + '/'`  |
-| `cdvfile`            | `cdvfile://localhost/`                   |
-| `file`               | `file:///`                               |
-| any other            | `<ANY OTHER>:///`                        |
+| Variable Value       | Resulting File URl Base                 |
+|----------------------|-----------------------------------------|
+| Unspecified or empty | `cdvfile://localhost/`                  |
+| `_use_app_scheme`    | `appScheme + '://' + appHostname + '/'` |
+| `cdvfile`            | `cdvfile://localhost/`                  |
+| `file`               | `file:///`                              |
+| `efs`                | `efs:///`                               |
+| any other            | `<ANY OTHER>:///`                       |
 
-The values `_use_app_scheme`, `cdvfile` and `file` lead to unnecessary long file urls, which has impact on the memory footprint of your application. Prefer using the default value `efs` or any other short value.  
+The values `_use_app_scheme`, `cdvfile` and `file` lead to (unnecessary) long file urls, which has impact on the memory footprint of your application. 
+Use `efs` or any other short value if that matters in your use case.  
 
-The value `_use_app_scheme` may be used to avoid cross origin issues between sources compiled in the app and those stored in the file system. 
+The value `_use_app_scheme` may be used to avoid cross-origin issues between sources compiled in the app and those stored in the file system. 
 
 ## Browser Quirks
 
@@ -521,7 +523,7 @@ cdvfile paths are supported by core plugins - for example you can download an mp
 
 __*Note__: See [Where to Store Files](#where-to-store-files), [File System Layouts](#file-system-layouts) and [Configuring the Plugin](#configuring-the-plugin-optional) for more details about available fs roots.
 
-To use `cdvfile` as a tag' `src` you can convert it to native path via `toURL()` method of the resolved fileEntry, which you can get via `resolveLocalFileSystemURL` - see examples below.
+To use `cdvfile` as a tag's `src` you can convert it to native path via `toURL()` method of the resolved fileEntry, which you can get via `resolveLocalFileSystemURL` - see examples below.
 
 You can also use `cdvfile://` paths directly in the DOM, for example:
 ```HTML

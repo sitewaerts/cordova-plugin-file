@@ -21,6 +21,7 @@
 /* eslint no-undef : 0 */
 FILESYSTEM_PROTOCOL = 'cdvfile';
 
+// no need to use the configured files scheme here, as cdvfile is always handled correctly
 module.exports = {
     __format__: function (fullPath) {
         const path = ('/' + this.name + (fullPath[0] === '/' ? '' : '/') + FileSystem.encodeURIPath(fullPath)).replace('//', '/');

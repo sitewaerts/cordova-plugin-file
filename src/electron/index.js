@@ -72,6 +72,10 @@ const CDV_HOST = "localhost"
 const CDV_BASE = CDV_SCHEME + "://" + CDV_HOST
 const CDV_PREFIX = CDV_BASE + PATH_SEP
 
+
+let activeFilesScheme = CDV_SCHEME;
+let activeFilesHost = CDV_HOST;
+
 /**
  * @type {Array<FileLocation>}
  */
@@ -1117,6 +1121,16 @@ const pluginUtil = {
     resolveLocalFileSystemURI: (url) =>
     {
         return pluginAPI.resolveLocalFileSystemURI([url]);
+    },
+
+    /**
+     * @returns {scheme:string, host:string| null}
+     */
+    getActiveFilesInfo: ()=>{
+        return {
+            scheme: activeFilesScheme,
+            host: activeFilesHost
+        };
     }
 }
 
@@ -1372,7 +1386,7 @@ function getSchemeConfig(ctx)
 
     let filesScheme = ctx.getVariable(VARIABLE_ELECTRON_FILES_SCHEME);
     if (!filesScheme || filesScheme.length===0)
-        filesScheme = EFS_SCHEME;
+        filesScheme = CDV_SCHEME;
     else if (filesScheme === '_use_app_scheme')
         filesScheme = appScheme;
 
@@ -1472,6 +1486,15 @@ plugin.configure = (ctx) =>
 
 
     const {appScheme, filesScheme, filesSchemeStandard} = getSchemeConfig(ctx);
+
+    activeFilesScheme = filesScheme;
+    if(filesScheme === CDV_SCHEME)
+        activeFilesHost = CDV_HOST;
+    else if (filesScheme === appScheme)
+        activeFilesHost = ctx.getHostname();
+    else
+        activeFilesHost = null;
+
     if (appScheme === filesScheme)
         // scheme already registered as privileged in cdv-electron-main.js, additional scheme not required
         return;
