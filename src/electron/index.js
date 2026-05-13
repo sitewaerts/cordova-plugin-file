@@ -1385,7 +1385,7 @@ function getSchemeConfig(ctx)
         throw new Error("illegal app scheme '" + appScheme + "'");
 
     let filesScheme = ctx.getVariable(VARIABLE_ELECTRON_FILES_SCHEME);
-    if (!filesScheme || filesScheme.length===0)
+    if (!filesScheme || filesScheme.length===0 || filesScheme === "_default")
         filesScheme = CDV_SCHEME;
     else if (filesScheme === '_use_app_scheme')
         filesScheme = appScheme;

@@ -288,12 +288,12 @@ to config.xml in order for the application to find previously stored files.
         // use cdv scheme with hostname 'localhost': requires more memory than custom scheme as the urls are longer
         // <preference name="ELECTRON_FILES_SCHEME" default="cdvfile" />
 
-        // use default specified in impl (currently: efs)
-        // <preference name="ELECTRON_FILES_SCHEME" default="efs" />
+        // use default specified in impl (currently: cdvfile)
+        // <preference name="ELECTRON_FILES_SCHEME" default="_default" />
 
 
         -->
-        <preference name="ELECTRON_FILES_SCHEME" default="efs" />
+        <preference name="ELECTRON_FILES_SCHEME" default="_default" />
 
 
         <framework src="src/electron" />
