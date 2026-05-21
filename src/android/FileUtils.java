@@ -167,8 +167,8 @@ public class FileUtils extends CordovaPlugin {
     }
 
     @Override
-    public void initialize(CordovaInterface cordova, CordovaWebView webView) {
-        super.initialize(cordova, webView);
+    protected void pluginInitialize() {
+        super.pluginInitialize();
         this.filesystems = new ArrayList<Filesystem>();
         this.pendingRequests = new PendingRequests();
 
