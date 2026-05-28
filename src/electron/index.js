@@ -1453,13 +1453,19 @@ plugin.configure = (ctx) =>
 
             // use %LOCALAPPDATA%\Packages\%PACKAGE_FAMILY_ID%
             // this path is identically to the path formerly used in cordova-windows (UWP App)
-            const packageString = process.argv0.split('\\').filter((comp)=>{return comp.startsWith(appPackageName)})[0]
+            const packageString = process.argv0.split('\\').filter((comp)=>{return comp.contains(appPackageName + '_')})[0]
             if(!packageString)
-                return Promise.reject(new Error("cordova-plugin-file cannot find PACKAGE_FAMILY_ID at path '" + process.argv0 + "'"));
+                return Promise.reject(new Error("cordova-plugin-file cannot parse path '" + process.argv0 + "'"));
+
             const familyId = packageString.split('__')[1];
             if(!familyId)
                 return Promise.reject(new Error("cordova-plugin-file cannot find PACKAGE_FAMILY_ID at path '" + process.argv0 + "'"));
-            const packageFamilyId = appPackageName + '_' + familyId;
+
+            const packageId = packageString.split('_')[0];
+            if(!packageId)
+                return Promise.reject(new Error("cordova-plugin-file cannot find PACKAGE_ID at path '" + process.argv0 + "'"));
+
+            const packageFamilyId = packageId + '_' + familyId;
 
             appDataDir =  path.join(process.env['LOCALAPPDATA'], 'Packages\\' + packageFamilyId);
         }
