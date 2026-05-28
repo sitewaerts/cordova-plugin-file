@@ -222,7 +222,7 @@ class FileLocation
         allPaths[name + "Directory"] = this.osPathDef.prefix;
         allUrls[name + "Directory"] = this.urlDef.prefix;
 
-        console.log("cordova-plugin-file: file location '" + name + "':" + osDirPath + " --> " + this.urlDef.prefix);
+        console.log("cordova-plugin-file: file location '" + name + "': " + osDirPath + " --> " + this.urlDef.prefix);
     }
 
     /**
@@ -1453,7 +1453,7 @@ plugin.configure = (ctx) =>
 
             // use %LOCALAPPDATA%\Packages\%PACKAGE_FAMILY_ID%
             // this path is identically to the path formerly used in cordova-windows (UWP App)
-            const packageString = process.argv0.split('\\').filter((comp)=>{return comp.contains(appPackageName + '_')})[0]
+            const packageString = process.argv0.split('\\').filter((comp)=>{return comp.indexOf(appPackageName + '_') >= 0})[0]
             if(!packageString)
                 return Promise.reject(new Error("cordova-plugin-file cannot parse path '" + process.argv0 + "'"));
 
