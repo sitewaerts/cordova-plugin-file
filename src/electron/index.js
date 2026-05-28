@@ -984,7 +984,7 @@ const pluginAPI = {
             const buf = Buffer.from(data);
             let bytesWritten = 0;
 
-            fs.open(entry.getOSPath(), 'a')
+            fs.open(entry.getOSPath(), 'r+')
                 .then(fd =>
                 {
                     return fs.write(fd, buf, 0, buf.length, position)
