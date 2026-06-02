@@ -20,7 +20,7 @@
 -->
 # Release Notes
 
-### 8.1.5 (2026)
+### 8.1.6 (2026)
 **Features:**
 * full electron support
 

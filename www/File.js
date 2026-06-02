@@ -20,12 +20,12 @@
 */
 
 /**
- * Constructor.
- * name {DOMString} name of the file, without path information
- * fullPath {DOMString} the full path of the file, including the name
- * type {DOMString} mime type
- * lastModifiedDate {Date} last modified date
- * size {Number} size of the file in bytes
+ * @constructor
+ * @param {string} name name of the file, without path information
+ * @param {string} localURL the full path of the file, including the name
+ * @param {string} type mime type
+ * @param {Date} lastModifiedDate last modified date
+ * @param {number} size size of the file in bytes
  */
 
 const File = function (name, localURL, type, lastModifiedDate, size) {
@@ -46,8 +46,9 @@ const File = function (name, localURL, type, lastModifiedDate, size) {
  * Returns a "slice" of the file. Since Cordova Files don't contain the actual
  * content, this really returns a File with adjusted start and end.
  * Slices of slices are supported.
- * start {Number} The index at which to start the slice (inclusive).
- * end {Number} The index at which to end the slice (exclusive).
+ * @param {number} start The index at which to start the slice (inclusive).
+ * @param {number} end The index at which to end the slice (exclusive).
+ * @return {File}
  */
 File.prototype.slice = function (start, end) {
     const size = this.end - this.start;

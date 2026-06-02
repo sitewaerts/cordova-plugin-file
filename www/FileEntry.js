@@ -28,12 +28,15 @@ const FileError = require('./FileError');
 
 /**
  * An interface representing a file on the file system.
+ * @constructor
+ * @extends {Entry}
+ * @property {true} isFile always true (readonly)
+ * @property {false} isDirectory always false (readonly)
  *
- * {boolean} isFile always true (readonly)
- * {boolean} isDirectory always false (readonly)
- * {DOMString} name of the file, excluding the path leading to it (readonly)
- * {DOMString} fullPath the absolute full path to the file (readonly)
- * {FileSystem} filesystem on which the file resides (readonly)
+ * @param {string} name of the file, excluding the path leading to it (readonly)
+ * @param {string} fullPath the absolute full path to the file (readonly)
+ * @param {FileSystem} fileSystem on which the file resides (readonly)
+ * @param {string} nativeURL
  */
 const FileEntry = function (name, fullPath, fileSystem, nativeURL) {
     // remove trailing slash if it is present
@@ -52,8 +55,9 @@ utils.extend(FileEntry, Entry);
 /**
  * Creates a new FileWriter associated with the file that this FileEntry represents.
  *
- * @param {Function} successCallback is called with the new FileWriter
- * @param {Function} errorCallback is called with a FileError
+ * @param {(writer:FileWriter)=>void} [successCallback] is called with the new FileWriter
+ * @param {(error:FileError)=>void} [errorCallback] is called with a FileError
+ * @void
  */
 FileEntry.prototype.createWriter = function (successCallback, errorCallback) {
     this.file(function (filePointer) {
@@ -74,8 +78,9 @@ FileEntry.prototype.createWriter = function (successCallback, errorCallback) {
 /**
  * Returns a File that represents the current state of the file that this FileEntry represents.
  *
- * @param {Function} successCallback is called with the new File object
- * @param {Function} errorCallback is called with a FileError
+ * @param {(file:File)=>void} [successCallback] is called with the new File object
+ * @param {(error:FileError)=>void} [errorCallback] is called with a FileError
+ * @void
  */
 FileEntry.prototype.file = function (successCallback, errorCallback) {
     const localURL = this.toInternalURL();

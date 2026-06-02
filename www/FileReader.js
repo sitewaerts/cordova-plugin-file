@@ -35,11 +35,33 @@ const origFileReader = modulemapper.getOriginalSymbol(window, 'FileReader');
  * @constructor
  */
 const FileReader = function () {
-    this._readyState = 0;
+    /**
+     * @type {FileReader.DONE | FileReader.EMPTY | FileReader.LOADING  }
+     */
+    this._readyState = FileReader.EMPTY;
+    /**
+     * @type {any}
+     */
     this._error = null;
+
+    /**
+     * @type {null | ArrayBufferLike | string}
+     */
     this._result = null;
+
+    /**
+     * @type {number | null}
+     */
     this._progress = null;
+    /**
+     * 
+     * @type {string}
+     */
     this._localURL = '';
+    /**
+     * 
+     * @type {window.FileReader}
+     */
     this._realReader = origFileReader ? new origFileReader() : {}; // eslint-disable-line new-cap
 };
 
@@ -48,6 +70,7 @@ const FileReader = function () {
  * minimizing the overhead of many exec() calls while still reporting progress frequently enough for large files.
  * (Note attempts to allocate more than a few MB of contiguous memory on the native side are likely to cause
  * OOM exceptions, while the JS engine seems to have fewer problems managing large strings or ArrayBuffers.)
+ * @type {number}
  */
 FileReader.READ_CHUNK_SIZE = 256 * 1024;
 
@@ -94,6 +117,12 @@ defineEvent('onloadend');
 // When the read has been aborted. For instance, by invoking the abort() method.
 defineEvent('onabort');
 
+/**
+ *
+ * @param {FileReader} reader
+ * @param {File} file
+ * @return {boolean}
+ */
 function initRead (reader, file) {
     // Already loading something
     if (reader.readyState === FileReader.LOADING) {
@@ -121,12 +150,14 @@ function initRead (reader, file) {
  * Callback used by the following read* functions to handle incremental or final success.
  * Must be bound to the FileReader's this along with all but the last parameter,
  * e.g. readSuccessCallback.bind(this, "readAsText", "UTF-8", offset, totalSize, accumulate)
- * @param readType The name of the read function to call.
- * @param encoding Text encoding, or null if this is not a text type read.
- * @param offset Starting offset of the read.
- * @param totalSize Total number of bytes or chars to read.
- * @param accumulate A function that takes the callback result and accumulates it in this._result.
- * @param r Callback result returned by the last read exec() call, or null to begin reading.
+ * @template {string|Iterable<number>} RESULT_TYPE
+ * @param {string} readType The name of the read function to call.
+ * @param {string} encoding Text encoding, or null if this is not a text type read.
+ * @param {number} offset Starting offset of the read.
+ * @param {number} totalSize Total number of bytes or chars to read.
+ * @param {(r:RESULT_TYPE)=>void} accumulate A function that takes the callback result and accumulates it in this._result.
+ * @param {RESULT_TYPE} [r] Callback result returned by the last read exec() call, or null to begin reading.
+ * @void
  */
 function readSuccessCallback (readType, encoding, offset, totalSize, accumulate, r) {
     if (this._readyState === FileReader.DONE) {
@@ -140,7 +171,7 @@ function readSuccessCallback (readType, encoding, offset, totalSize, accumulate,
         CHUNK_SIZE = cordova.platformId === 'windows'
             ? totalSize
             : (
-                // Calculate new chunk size for data URLs to be multiply of 3
+                // Calculate new chunk size for data URLs to be multiple of 3
                 // Otherwise concatenated base64 chunks won't be valid base64 data
                 FileReader.READ_CHUNK_SIZE - (FileReader.READ_CHUNK_SIZE % 3) + 3
             );
@@ -183,6 +214,8 @@ function readSuccessCallback (readType, encoding, offset, totalSize, accumulate,
 /**
  * Callback used by the following read* functions to handle errors.
  * Must be bound to the FileReader's this, e.g. readFailureCallback.bind(this)
+ * @param {any} e error
+ * @void
  */
 function readFailureCallback (e) {
     if (this._readyState === FileReader.DONE) {
@@ -204,10 +237,12 @@ function readFailureCallback (e) {
 
 /**
  * Abort reading file.
+ * @void
  */
 FileReader.prototype.abort = function () {
     if (origFileReader && !this._localURL) {
-        return this._realReader.abort();
+        this._realReader.abort();
+        return;
     }
     this._result = null;
 
@@ -230,24 +265,30 @@ FileReader.prototype.abort = function () {
 /**
  * Read text file.
  *
- * @param file          {File} File object containing file properties
- * @param encoding      [Optional] (see http://www.iana.org/assignments/character-sets)
+ * @param {File} file File object containing file properties
+ * @param {string} [encoding] (see http://www.iana.org/assignments/character-sets)
+ * @void
  */
 FileReader.prototype.readAsText = function (file, encoding) {
     if (initRead(this, file)) {
-        return this._realReader.readAsText(file, encoding);
+        this._realReader.readAsText(file, encoding);
+        return;
     }
 
     // Default encoding is UTF-8
     const enc = encoding || 'UTF-8';
 
     const totalSize = file.end - file.start;
-    readSuccessCallback.bind(this)('readAsText', enc, file.start, totalSize, function (r) {
-        if (this._progress === 0) {
-            this._result = '';
-        }
-        this._result += r;
-    }.bind(this));
+    readSuccessCallback.bind(this)('readAsText', enc, file.start, totalSize,
+        /**
+         * @param {string} r
+         */
+        function (r) {
+            if (this._progress === 0) {
+                this._result = '';
+            }
+            this._result += r;
+        }.bind(this));
 };
 
 /**
@@ -255,59 +296,77 @@ FileReader.prototype.readAsText = function (file, encoding) {
  * A data url is of the form:
  *      data:[<mediatype>][;base64],<data>
  *
- * @param file          {File} File object containing file properties
+ * @param {File} file File object containing file properties
+ * @void
  */
 FileReader.prototype.readAsDataURL = function (file) {
     if (initRead(this, file)) {
-        return this._realReader.readAsDataURL(file);
+        this._realReader.readAsDataURL(file);
+        return;
     }
 
     const totalSize = file.end - file.start;
-    readSuccessCallback.bind(this)('readAsDataURL', null, file.start, totalSize, function (r) {
-        const commaIndex = r.indexOf(',');
-        if (this._progress === 0) {
-            this._result = r;
-        } else {
-            this._result += r.substring(commaIndex + 1);
-        }
-    }.bind(this));
+    readSuccessCallback.bind(this)('readAsDataURL', null, file.start, totalSize,
+        /**
+         * @param {string} r
+         */
+        function (r) {
+            const commaIndex = r.indexOf(',');
+            if (this._progress === 0) {
+                this._result = r;
+            } else {
+                this._result += r.substring(commaIndex + 1);
+            }
+        }.bind(this));
 };
 
 /**
  * Read file and return data as a binary data.
  *
- * @param file          {File} File object containing file properties
+ * @param {File} file File object containing file properties
+ * @void
  */
 FileReader.prototype.readAsBinaryString = function (file) {
     if (initRead(this, file)) {
-        return this._realReader.readAsBinaryString(file);
+        this._realReader.readAsBinaryString(file);
+        return;
     }
 
     const totalSize = file.end - file.start;
-    readSuccessCallback.bind(this)('readAsBinaryString', null, file.start, totalSize, function (r) {
-        if (this._progress === 0) {
-            this._result = '';
-        }
-        this._result += r;
-    }.bind(this));
+    readSuccessCallback.bind(this)('readAsBinaryString', null, file.start, totalSize,
+        /**
+         * @param {string} r
+         */
+        function (r) {
+            if (this._progress === 0) {
+                this._result = '';
+            }
+            this._result += r;
+        }.bind(this));
 };
 
 /**
  * Read file and return data as a binary data.
  *
- * @param file          {File} File object containing file properties
+ * @param {File} file File object containing file properties
+ * @void
  */
 FileReader.prototype.readAsArrayBuffer = function (file) {
     if (initRead(this, file)) {
-        return this._realReader.readAsArrayBuffer(file);
+        this._realReader.readAsArrayBuffer(file);
+        return;
     }
 
     const totalSize = file.end - file.start;
-    readSuccessCallback.bind(this)('readAsArrayBuffer', null, file.start, totalSize, function (r) {
-        const resultArray = (this._progress === 0 ? new Uint8Array(totalSize) : new Uint8Array(this._result));
-        resultArray.set(new Uint8Array(r), this._progress);
-        this._result = resultArray.buffer;
-    }.bind(this));
+    readSuccessCallback.bind(this)('readAsArrayBuffer', null, file.start, totalSize,
+        /**
+         * @param {Iterable<number>} r
+         */
+        function (r) {
+            const resultArray = (this._progress === 0 ? new Uint8Array(totalSize) : new Uint8Array(this._result));
+            resultArray.set(new Uint8Array(r), this._progress);
+            this._result = resultArray.buffer;
+        }.bind(this));
 };
 
 module.exports = FileReader;
