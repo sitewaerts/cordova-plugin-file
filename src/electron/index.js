@@ -1181,7 +1181,7 @@ function readAs(outputFormat, uri, encoding, startPos, endPos)
                             resolve('data:;base64,' + buf.toString('base64'));
                             break;
                         case 'arrayBuffer':
-                            resolve(Uint8Array.from(buf));
+                            resolve(buf);
                             break;
                         case 'binaryString':
                             resolve(buf.toString('binary'));
