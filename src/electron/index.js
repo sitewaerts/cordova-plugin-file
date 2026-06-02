@@ -1164,6 +1164,9 @@ function readAs(outputFormat, uri, encoding, startPos, endPos)
                 return;
             }
 
+            /**
+             * @type {Buffer}
+             */
             const buf = Buffer.alloc(endPos - startPos);
 
             fs.read(fd, buf, 0, buf.length, startPos)
@@ -1178,7 +1181,7 @@ function readAs(outputFormat, uri, encoding, startPos, endPos)
                             resolve('data:;base64,' + buf.toString('base64'));
                             break;
                         case 'arrayBuffer':
-                            resolve(buf);
+                            resolve(Uint8Array.from(buf));
                             break;
                         case 'binaryString':
                             resolve(buf.toString('binary'));
